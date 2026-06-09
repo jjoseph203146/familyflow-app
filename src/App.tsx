@@ -23,6 +23,7 @@ import { RedemptionQueue } from '@/pages/parent/RedemptionQueue'
 import { ParentActivityFeed } from '@/pages/parent/ActivityFeed'
 import { Settings } from '@/pages/parent/Settings'
 import { InviteMembers } from '@/pages/parent/InviteMembers'
+import { ChoreDetail } from '@/pages/parent/ChoreDetail'
 
 // Child
 import { ChildDashboard } from '@/pages/child/ChildDashboard'
@@ -81,6 +82,7 @@ function AppRoutes() {
           <Route path="/parent/activity" element={<ParentActivityFeed />} />
           <Route path="/parent/settings" element={<Settings />} />
           <Route path="/parent/invite" element={<InviteMembers />} />
+          <Route path="/parent/chore/:id" element={<ChoreDetail />} />
           <Route path="*" element={<Navigate to="/parent" replace />} />
         </Routes>
       </FamilyProvider>

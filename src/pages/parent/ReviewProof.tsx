@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { addDays, addWeeks, addMonths } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
+import type { ChoreRecurrence } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { Avatar } from '@/components/ui/Avatar'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
@@ -72,6 +74,23 @@ export function ReviewProof() {
         read: false,
         chore_id: chore.id,
       })
+
+      // Auto-create next occurrence for recurring chores
+      if (chore.recurrence !== 'none' && chore.due_date) {
+        const nextDue = nextOccurrence(chore.due_date, chore.recurrence)
+        await supabase.from('chores').insert({
+          family_id: chore.family_id,
+          title: chore.title,
+          description: chore.description,
+          assigned_to: chore.assigned_to,
+          assigned_by: chore.assigned_by,
+          points_value: chore.points_value,
+          requires_photo: chore.requires_photo,
+          recurrence: chore.recurrence,
+          due_date: nextDue,
+          status: 'pending',
+        })
+      }
     }
 
     await refresh()
@@ -222,4 +241,12 @@ export function ReviewProof() {
       </div>
     </AppLayout>
   )
+}
+
+function nextOccurrence(dueDateIso: string, recurrence: ChoreRecurrence): string {
+  const d = new Date(dueDateIso)
+  if (recurrence === 'daily')   return addDays(d, 1).toISOString()
+  if (recurrence === 'weekly')  return addWeeks(d, 1).toISOString()
+  if (recurrence === 'monthly') return addMonths(d, 1).toISOString()
+  return d.toISOString()
 }
