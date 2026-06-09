@@ -52,7 +52,7 @@ export function InviteMembers() {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
               <div style={{ padding: 16, background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
                 <QRCodeSVG
-                  value={family.invite_code}
+                  value={`${window.location.origin}/join/${family.invite_code}`}
                   size={160}
                   fgColor="#5C5CE0"
                   bgColor="#ffffff"

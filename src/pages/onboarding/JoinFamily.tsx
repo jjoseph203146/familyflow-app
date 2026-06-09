@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { TopBar } from '@/components/layout/AppLayout'
 
 export function JoinFamily() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { refreshProfile } = useAuth()
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(searchParams.get('code') ?? '')
   const [role, setRole] = useState<'parent' | 'child'>('child')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)

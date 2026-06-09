@@ -23,7 +23,13 @@ export function SignUp() {
     const { error } = await signUp(email, password, fullName)
     setLoading(false)
     if (error) { setError(error); return }
-    navigate('/onboarding')
+    const pendingCode = sessionStorage.getItem('pendingJoinCode')
+    if (pendingCode) {
+      sessionStorage.removeItem('pendingJoinCode')
+      navigate(`/onboarding/join?code=${pendingCode}`)
+    } else {
+      navigate('/onboarding')
+    }
   }
 
   return (

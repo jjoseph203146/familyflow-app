@@ -11,6 +11,7 @@ import { SignUp } from '@/pages/auth/SignUp'
 import { CreateOrJoin } from '@/pages/onboarding/CreateOrJoin'
 import { CreateFamily } from '@/pages/onboarding/CreateFamily'
 import { JoinFamily } from '@/pages/onboarding/JoinFamily'
+import { JoinViaLink } from '@/pages/onboarding/JoinViaLink'
 
 // Parent
 import { ParentDashboard } from '@/pages/parent/ParentDashboard'
@@ -50,6 +51,7 @@ function AppRoutes() {
         <Route path="/" element={<Welcome />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/join/:code" element={<JoinViaLink />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     )
@@ -62,6 +64,7 @@ function AppRoutes() {
         <Route path="/onboarding" element={<CreateOrJoin />} />
         <Route path="/onboarding/create" element={<CreateFamily />} />
         <Route path="/onboarding/join" element={<JoinFamily />} />
+        <Route path="/join/:code" element={<JoinViaLink />} />
         <Route path="*" element={<Navigate to="/onboarding" replace />} />
       </Routes>
     )
