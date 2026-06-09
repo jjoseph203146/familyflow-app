@@ -60,6 +60,13 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { load() }, [load])
 
+  // Refresh when app comes back into focus (e.g. switching back from camera or another app)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [load])
+
   // Real-time subscriptions
   useEffect(() => {
     if (!profile?.family_id) return

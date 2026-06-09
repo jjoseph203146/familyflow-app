@@ -9,8 +9,8 @@ import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 export function SubmitProof() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const { user, profile } = useAuth()
-  const { chores, members, refresh } = useFamily()
+  const { user } = useAuth()
+  const { chores, refresh } = useFamily()
   const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -61,28 +61,14 @@ export function SubmitProof() {
       photoPath = path
     }
 
-    const { error: updateError } = await supabase.from('chores').update({
-      status: 'submitted',
-      submitted_at: new Date().toISOString(),
-      photo_url: photoUrl,
-      photo_path: photoPath,
-    }).eq('id', chore.id)
+    const { error: updateError } = await supabase.rpc('submit_proof', {
+      p_chore_id: chore.id,
+      p_photo_url: photoUrl,
+      p_photo_path: photoPath,
+      p_is_resubmit: false,
+    })
 
     if (updateError) { setError(updateError.message); setLoading(false); return }
-
-    // Notify parents
-    const parents = members.filter(m => m.role === 'parent')
-    for (const parent of parents) {
-      await supabase.from('notifications').insert({
-        user_id: parent.id,
-        family_id: profile?.family_id,
-        type: 'chore_submitted',
-        title: 'New submission to review 📸',
-        body: `${profile?.full_name} submitted "${chore.title}".`,
-        read: false,
-        chore_id: chore.id,
-      })
-    }
 
     await refresh()
     setSuccess(true)

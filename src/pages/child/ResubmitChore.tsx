@@ -9,8 +9,8 @@ import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 export function ResubmitChore() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const { user, profile } = useAuth()
-  const { chores, members, refresh } = useFamily()
+  const { user } = useAuth()
+  const { chores, refresh } = useFamily()
   const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -59,26 +59,12 @@ export function ResubmitChore() {
       }
     }
 
-    await supabase.from('chores').update({
-      status: 'submitted',
-      rejection_comment: null,
-      submitted_at: new Date().toISOString(),
-      photo_url: photoUrl,
-      photo_path: photoPath,
-    }).eq('id', chore.id)
-
-    const parents = members.filter(m => m.role === 'parent')
-    for (const parent of parents) {
-      await supabase.from('notifications').insert({
-        user_id: parent.id,
-        family_id: profile?.family_id,
-        type: 'chore_submitted',
-        title: 'Resubmission ready for review 📸',
-        body: `${profile?.full_name} resubmitted "${chore.title}".`,
-        read: false,
-        chore_id: chore.id,
-      })
-    }
+    await supabase.rpc('submit_proof', {
+      p_chore_id: chore.id,
+      p_photo_url: photoUrl,
+      p_photo_path: photoPath,
+      p_is_resubmit: true,
+    })
 
     await refresh()
     setSuccess(true)
