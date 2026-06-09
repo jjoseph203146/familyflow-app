@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Copy, Share2 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useFamily } from '@/contexts/FamilyContext'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ParentTabBar } from '@/components/layout/TabBar'
@@ -48,15 +49,16 @@ export function InviteMembers() {
               </div>
             </div>
 
-            {/* QR placeholder */}
-            <div style={{
-              width: 180, height: 180, margin: '0 auto 24px',
-              background: '#F3F4F6', borderRadius: 16,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexDirection: 'column', gap: 8, color: '#9CA3AF',
-            }}>
-              <span style={{ fontSize: 40 }}>⬛</span>
-              <span className="text-sm">QR code</span>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+              <div style={{ padding: 16, background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+                <QRCodeSVG
+                  value={family.invite_code}
+                  size={160}
+                  fgColor="#5C5CE0"
+                  bgColor="#ffffff"
+                  level="M"
+                />
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 12 }}>
