@@ -50,7 +50,7 @@ export function ResubmitChore() {
 
     if (photo) {
       const ext = photo.name.split('.').pop()
-      const path = `${profile?.family_id}/${chore.id}/${Date.now()}-resubmit.${ext}`
+      const path = `${chore.family_id}/${chore.id}/${Date.now()}-resubmit.${ext}`
       const { error: uploadError } = await supabase.storage.from('chore-photos').upload(path, photo, { upsert: true })
       if (!uploadError) {
         const { data: signedData } = await supabase.storage.from('chore-photos').createSignedUrl(path, 60 * 60 * 24 * 30)

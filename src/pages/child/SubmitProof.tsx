@@ -52,7 +52,7 @@ export function SubmitProof() {
 
     if (photo) {
       const ext = photo.name.split('.').pop()
-      const path = `${profile?.family_id}/${chore.id}/${Date.now()}.${ext}`
+      const path = `${chore.family_id}/${chore.id}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('chore-photos').upload(path, photo, { upsert: true })
       if (uploadError) { setError(uploadError.message); setLoading(false); return }
 
