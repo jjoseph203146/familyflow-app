@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useFamily } from '@/contexts/FamilyContext'
+import { supabase } from '@/lib/supabase'
 import { Avatar } from '@/components/ui/Avatar'
+import { Modal } from '@/components/ui/Modal'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ParentTabBar } from '@/components/layout/TabBar'
 import { formatDueDate } from '@/lib/utils'
@@ -16,11 +18,17 @@ const STATUS_PILL: Record<string, { label: string; cls: string }> = {
   rejected:   { label: 'Rejected',   cls: 'pill-red' },
 }
 
+const QUICK_ADJUSTMENTS = [-50, -25, -10, +10, +25, +50]
+
 export function MemberDetail() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const { members, chores } = useFamily()
+  const { members, chores, refresh } = useFamily()
   const [tab, setTab] = useState<Tab>('active')
+
+  const [showBalance, setShowBalance] = useState(false)
+  const [newBalance, setNewBalance] = useState('')
+  const [balanceSaving, setBalanceSaving] = useState(false)
 
   const member = members.find(m => m.id === id)
   const memberChores = chores.filter(c => c.assigned_to === id || c.assigned_to === null)
@@ -32,7 +40,26 @@ export function MemberDetail() {
   }
 
   const totalDone = memberChores.filter(c => c.status === 'approved').length
-  const totalPoints = memberChores.filter(c => c.status === 'approved').reduce((sum, c) => sum + c.points_value, 0)
+
+  function openBalanceEditor() {
+    setNewBalance(String(member?.points_total ?? 0))
+    setShowBalance(true)
+  }
+
+  async function handleSaveBalance() {
+    if (!member) return
+    const val = parseInt(newBalance)
+    if (isNaN(val) || val < 0) return
+    setBalanceSaving(true)
+    await supabase.rpc('set_member_points', { p_member_id: member.id, p_points: val })
+    await refresh()
+    setBalanceSaving(false)
+    setShowBalance(false)
+  }
+
+  function adjust(delta: number) {
+    setNewBalance(prev => String(Math.max(0, (parseInt(prev) || 0) + delta)))
+  }
 
   if (!member) {
     return (
@@ -61,7 +88,7 @@ export function MemberDetail() {
               <p style={{ color: 'rgba(255,255,255,0.8)', textTransform: 'capitalize' }}>{member.role}</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 24, marginTop: 20 }}>
+          <div style={{ display: 'flex', gap: 24, marginTop: 20, alignItems: 'flex-end' }}>
             <div>
               <div style={{ color: '#fff', fontSize: 22, fontWeight: 700 }}>⭐ {member.points_total}</div>
               <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Total points</div>
@@ -76,6 +103,12 @@ export function MemberDetail() {
                 <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Day streak</div>
               </div>
             )}
+            <button
+              onClick={openBalanceEditor}
+              style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: '1.5px solid rgba(255,255,255,0.4)', borderRadius: 10, padding: '6px 14px', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+            >
+              Edit balance
+            </button>
           </div>
         </div>
 
@@ -123,6 +156,51 @@ export function MemberDetail() {
           )}
         </div>
       </div>
+
+      {/* Balance editor modal */}
+      <Modal open={showBalance} onClose={() => setShowBalance(false)}>
+        <h3 style={{ marginBottom: 4 }}>Edit point balance</h3>
+        <p className="text-sm text-muted" style={{ marginBottom: 20 }}>
+          Current balance: <strong>⭐ {member.points_total}</strong>
+        </p>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {QUICK_ADJUSTMENTS.map(delta => (
+            <button
+              key={delta}
+              type="button"
+              onClick={() => adjust(delta)}
+              style={{
+                padding: '8px 14px', borderRadius: 10, border: '1.5px solid #E5E7EB',
+                background: delta > 0 ? '#F0FDF4' : '#FEF2F2',
+                color: delta > 0 ? '#15803D' : '#B91C1C',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              {delta > 0 ? `+${delta}` : delta}
+            </button>
+          ))}
+        </div>
+
+        <div className="input-group" style={{ marginBottom: 20 }}>
+          <label className="input-label">Set exact balance</label>
+          <input
+            className="input-field"
+            type="number"
+            min="0"
+            value={newBalance}
+            onChange={e => setNewBalance(e.target.value.replace(/\D/g, ''))}
+            style={{ fontWeight: 700, fontSize: 20, textAlign: 'center' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-ghost btn-full" onClick={() => setShowBalance(false)}>Cancel</button>
+          <button className="btn btn-primary btn-full" disabled={balanceSaving} onClick={handleSaveBalance}>
+            {balanceSaving ? 'Saving…' : 'Save balance'}
+          </button>
+        </div>
+      </Modal>
     </AppLayout>
   )
 }
