@@ -6,7 +6,7 @@ import { TopBar } from '@/components/layout/AppLayout'
 
 export function JoinFamily() {
   const navigate = useNavigate()
-  const { user, refreshProfile } = useAuth()
+  const { refreshProfile } = useAuth()
   const [code, setCode] = useState('')
   const [role, setRole] = useState<'parent' | 'child'>('child')
   const [error, setError] = useState('')
@@ -16,29 +16,22 @@ export function JoinFamily() {
     e.preventDefault()
     const normalized = code.trim().toUpperCase()
     if (!normalized) { setError('Please enter an invite code.'); return }
-    if (!user) return
 
     setLoading(true)
     setError('')
 
-    const { data: family } = await supabase
-      .from('families')
-      .select('id, name')
-      .eq('invite_code', normalized)
-      .single()
+    const { error: rpcError } = await supabase.rpc('join_family', {
+      p_invite_code: normalized,
+      p_role: role,
+    })
 
-    if (!family) {
-      setError("That code doesn't match any family. Double-check it and try again.")
+    if (rpcError) {
+      setError(rpcError.message.includes('Invalid invite code')
+        ? "That code doesn't match any family. Double-check it and try again."
+        : rpcError.message)
       setLoading(false)
       return
     }
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ family_id: family.id, role })
-      .eq('id', user.id)
-
-    if (updateError) { setError(updateError.message); setLoading(false); return }
 
     await refreshProfile()
     navigate(role === 'parent' ? '/parent' : '/child')

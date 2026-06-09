@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { generateInviteCode } from '@/lib/utils'
 import { TopBar } from '@/components/layout/AppLayout'
 
 export function CreateFamily() {
   const navigate = useNavigate()
-  const { user, profile, refreshProfile } = useAuth()
+  const { refreshProfile } = useAuth()
   const [familyName, setFamilyName] = useState('')
   const [role, setRole] = useState<'parent' | 'child'>('parent')
   const [error, setError] = useState('')
@@ -16,26 +15,16 @@ export function CreateFamily() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!familyName.trim()) { setError('Please enter a family name.'); return }
-    if (!user) return
 
     setLoading(true)
     setError('')
 
-    const inviteCode = generateInviteCode()
-    const { data: family, error: familyError } = await supabase
-      .from('families')
-      .insert({ name: familyName.trim(), invite_code: inviteCode, created_by: user.id })
-      .select()
-      .single()
+    const { error: rpcError } = await supabase.rpc('create_family', {
+      p_name: familyName.trim(),
+      p_role: role,
+    })
 
-    if (familyError) { setError(familyError.message); setLoading(false); return }
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ family_id: family.id, role })
-      .eq('id', user.id)
-
-    if (profileError) { setError(profileError.message); setLoading(false); return }
+    if (rpcError) { setError(rpcError.message); setLoading(false); return }
 
     await refreshProfile()
     navigate(role === 'parent' ? '/parent' : '/child')
