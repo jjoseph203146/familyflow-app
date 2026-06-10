@@ -9,24 +9,31 @@ import { Chore } from '@/types'
 export function ChildDashboard() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const { family, chores, members, loading } = useFamily()
+  const { family, chores, members, rewards, loading } = useFamily()
   const myMember = members.find(m => m.id === profile?.id)
+  const pts = myMember?.points_total ?? profile?.points_total ?? 0
+  const streak = myMember?.streak_current ?? profile?.streak_current ?? 0
+
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
 
   const myChores = chores.filter(c =>
     (c.assigned_to === profile?.id || c.assigned_to === null) &&
     c.status !== 'approved'
   )
 
-  const done = chores.filter(c =>
+  const doneToday = chores.filter(c =>
     (c.assigned_to === profile?.id || c.assigned_to === null) &&
-    c.status === 'approved'
+    c.status === 'approved' &&
+    c.approved_at != null &&
+    new Date(c.approved_at) >= todayStart
   ).length
 
-  const total = chores.filter(c =>
-    c.assigned_to === profile?.id || c.assigned_to === null
-  ).length
+  const nextReward = rewards
+    .filter(r => r.points_required > pts)
+    .sort((a, b) => a.points_required - b.points_required)[0] ?? null
+  const ptsToNext = nextReward ? nextReward.points_required - pts : null
 
-  const progress = total > 0 ? (done / total) * 100 : 0
   const now = new Date()
 
   if (loading) {
@@ -42,38 +49,57 @@ export function ChildDashboard() {
   return (
     <AppLayout tabBar={<ChildTabBar />}>
       <div className="screen">
-        {/* Header with points badge */}
-        <div style={{ padding: '20px 16px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        {/* Header */}
+        <div style={{ padding: '20px 16px 12px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <p className="text-sm text-muted">Hey {profile?.full_name?.split(' ')[0]},</p>
             <h1 style={{ fontSize: 22 }}>Today's chores ✨</h1>
             {family && <p className="text-sm text-muted">{family.name}</p>}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <div className="points-badge">
-              <span>⭐</span>
-              <span>{myMember?.points_total ?? profile?.points_total ?? 0}</span>
-            </div>
-            {(myMember?.streak_current ?? profile?.streak_current ?? 0) > 0 && (
-              <div className="streak-badge">
-                🔥 {myMember?.streak_current ?? profile?.streak_current} day{(myMember?.streak_current ?? profile?.streak_current) !== 1 ? 's' : ''}
-              </div>
-            )}
+          <div className="points-badge">
+            <span>⭐</span>
+            <span>{pts}</span>
           </div>
         </div>
 
-        {/* Progress */}
-        {total > 0 && (
-          <div style={{ padding: '0 16px 16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span className="text-sm text-muted">{done}/{total} complete</span>
-              <span className="text-sm" style={{ fontWeight: 600, color: '#5C5CE0' }}>{Math.round(progress)}%</span>
-            </div>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
-            </div>
+        {/* Stat cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: '0 16px 16px' }}>
+          <div className="card" style={{ borderTop: '3px solid #5C5CE0', textAlign: 'center', padding: '14px 12px' }}>
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#5C5CE0', lineHeight: 1 }}>{myChores.length}</div>
+            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>Chores Left</div>
           </div>
-        )}
+
+          <div className="card" style={{ borderTop: '3px solid #22C55E', textAlign: 'center', padding: '14px 12px' }}>
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#22C55E', lineHeight: 1 }}>{doneToday}</div>
+            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>Done Today</div>
+          </div>
+
+          <div className="card" style={{ borderTop: '3px solid #F59E0B', textAlign: 'center', padding: '14px 12px' }}>
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#F59E0B', lineHeight: 1 }}>
+              {streak > 0 ? `🔥 ${streak}` : '—'}
+            </div>
+            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>Day Streak</div>
+          </div>
+
+          <div className="card" style={{ borderTop: '3px solid #7C3AED', textAlign: 'center', padding: '14px 12px' }}>
+            {nextReward ? (
+              <>
+                <div style={{ fontSize: 28, fontWeight: 800, color: '#7C3AED', lineHeight: 1 }}>{ptsToNext} ⭐</div>
+                <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>{nextReward.title}</div>
+              </>
+            ) : rewards.length > 0 ? (
+              <>
+                <div style={{ fontSize: 28, lineHeight: 1 }}>🎉</div>
+                <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>All unlocked!</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 28, lineHeight: 1 }}>🎁</div>
+                <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>No rewards yet</div>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Chore list */}
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 100 }}>
@@ -83,8 +109,10 @@ export function ChildDashboard() {
                 <div className="empty-icon">🎉</div>
                 <h3>All done!</h3>
                 <p className="text-sm text-muted">No chores right now. Enjoy your time!</p>
-                {total > 0 && (
-                  <p className="text-sm text-muted" style={{ marginTop: 4 }}>You've completed {done} chore{done !== 1 ? 's' : ''} total.</p>
+                {doneToday > 0 && (
+                  <p className="text-sm text-muted" style={{ marginTop: 4 }}>
+                    You've completed {doneToday} chore{doneToday !== 1 ? 's' : ''} today.
+                  </p>
                 )}
               </div>
             </div>
