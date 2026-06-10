@@ -18,16 +18,26 @@ export function ParentDashboard() {
   const now = new Date()
   const overdueChores = activeChores.filter(c => c.due_date && new Date(c.due_date) < now)
 
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
+
   function getMemberChores(memberId: string): Chore[] {
     return chores.filter(c => (c.assigned_to === memberId || c.assigned_to === null) && c.status !== 'approved')
   }
 
-  function getMemberDoneCount(memberId: string): number {
-    return chores.filter(c => (c.assigned_to === memberId || c.assigned_to === null) && c.status === 'approved').length
-  }
-
-  function getMemberTotalCount(memberId: string): number {
-    return chores.filter(c => c.assigned_to === memberId || c.assigned_to === null).length
+  function getMemberDailyChores(memberId: string) {
+    const daily = chores.filter(c => {
+      if (c.assigned_to !== memberId && c.assigned_to !== null) return false
+      if (!c.due_date) return false
+      const due = new Date(c.due_date)
+      if (due > todayEnd) return false
+      if (c.status === 'approved') {
+        return c.approved_at != null && new Date(c.approved_at) >= todayStart
+      }
+      return true
+    })
+    const done = daily.filter(c => c.status === 'approved').length
+    return { total: daily.length, done }
   }
 
   if (loading) {
@@ -95,8 +105,7 @@ export function ParentDashboard() {
           {/* Member cards */}
           {members.filter(m => m.id !== profile?.id).map(member => {
             const memberChores = getMemberChores(member.id)
-            const done = getMemberDoneCount(member.id)
-            const total = getMemberTotalCount(member.id)
+            const { done, total } = getMemberDailyChores(member.id)
             const progress = total > 0 ? (done / total) * 100 : 0
 
             return (
@@ -118,10 +127,10 @@ export function ParentDashboard() {
                   </div>
                 </div>
 
-                {total > 0 && (
+                {total > 0 ? (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span className="text-sm text-muted">{done}/{total} chores done</span>
+                      <span className="text-sm text-muted">{done}/{total} due today</span>
                       {member.streak_current > 0 && (
                         <span className="streak-badge">🔥 {member.streak_current}</span>
                       )}
@@ -130,6 +139,8 @@ export function ParentDashboard() {
                       <div className="progress-fill" style={{ width: `${progress}%` }} />
                     </div>
                   </>
+                ) : (
+                  <p className="text-sm text-muted" style={{ marginBottom: 6 }}>No chores due today</p>
                 )}
 
                 {/* Pending chores preview */}
@@ -143,7 +154,7 @@ export function ParentDashboard() {
                 {memberChores.length > 2 && (
                   <p className="text-sm text-muted" style={{ marginTop: 6 }}>+{memberChores.length - 2} more</p>
                 )}
-                {memberChores.length === 0 && total === 0 && (
+                {memberChores.length === 0 && (
                   <p className="text-sm text-muted" style={{ marginTop: 4 }}>No chores assigned yet</p>
                 )}
               </button>
