@@ -130,8 +130,8 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
 
   async function clearAllNotifications() {
     if (!profile) return
-    await supabase.from('notifications').delete().eq('user_id', profile.id)
-    setNotifications([])
+    await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id)
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
