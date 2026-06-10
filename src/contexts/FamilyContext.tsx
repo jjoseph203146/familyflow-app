@@ -111,6 +111,12 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
         () => load())
       .subscribe()
 
+    const membersChannel = supabase
+      .channel('family-members')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `family_id=eq.${familyId}` },
+        () => load())
+      .subscribe()
+
     const notifChannel = supabase
       .channel('user-notifications')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
@@ -119,6 +125,7 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
 
     return () => {
       supabase.removeChannel(choresChannel)
+      supabase.removeChannel(membersChannel)
       supabase.removeChannel(notifChannel)
     }
   }, [profile?.family_id, profile?.id, load])

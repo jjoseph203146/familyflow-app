@@ -9,7 +9,8 @@ import { Chore } from '@/types'
 export function ChildDashboard() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const { family, chores, loading } = useFamily()
+  const { family, chores, members, loading } = useFamily()
+  const myMember = members.find(m => m.id === profile?.id)
 
   const myChores = chores.filter(c =>
     (c.assigned_to === profile?.id || c.assigned_to === null) &&
@@ -51,11 +52,11 @@ export function ChildDashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             <div className="points-badge">
               <span>⭐</span>
-              <span>{profile?.points_total ?? 0}</span>
+              <span>{myMember?.points_total ?? profile?.points_total ?? 0}</span>
             </div>
-            {profile && profile.streak_current > 0 && (
+            {(myMember?.streak_current ?? profile?.streak_current ?? 0) > 0 && (
               <div className="streak-badge">
-                🔥 {profile.streak_current} day{profile.streak_current !== 1 ? 's' : ''}
+                🔥 {myMember?.streak_current ?? profile?.streak_current} day{(myMember?.streak_current ?? profile?.streak_current) !== 1 ? 's' : ''}
               </div>
             )}
           </div>

@@ -15,13 +15,14 @@ const REWARD_EMOJI: Record<string, string> = {
 }
 
 export function PointsRewards() {
-  const { profile, refreshProfile } = useAuth()
-  const { rewards, refresh } = useFamily()
+  const { profile } = useAuth()
+  const { members, rewards, refresh } = useFamily()
   const [confirmReward, setConfirmReward] = useState<Reward | null>(null)
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const pts = profile?.points_total ?? 0
+  const myMember = members.find(m => m.id === profile?.id)
+  const pts = myMember?.points_total ?? profile?.points_total ?? 0
   const unlocked = rewards.filter(r => r.points_required <= pts)
   const locked = rewards.filter(r => r.points_required > pts).sort((a, b) => a.points_required - b.points_required)
 
@@ -29,16 +30,8 @@ export function PointsRewards() {
     if (!profile) return
     setLoading(true)
 
-    await supabase.from('profiles').update({ points_total: pts - reward.points_required }).eq('id', profile.id)
-    await supabase.from('redemptions').insert({
-      reward_id: reward.id,
-      redeemed_by: profile.id,
-      family_id: profile.family_id,
-      status: 'pending',
-      requested_at: new Date().toISOString(),
-    })
+    await supabase.rpc('redeem_reward', { p_reward_id: reward.id, p_points_cost: reward.points_required })
 
-    await refreshProfile()
     await refresh()
     setLoading(false)
     setConfirmReward(null)
@@ -54,9 +47,9 @@ export function PointsRewards() {
           <div style={{ marginBottom: 8, color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>Your balance</div>
           <div style={{ fontSize: 52, fontWeight: 800, color: '#fff', lineHeight: 1 }}>⭐ {pts}</div>
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 6 }}>points</div>
-          {profile?.streak_current && profile.streak_current > 0 ? (
+          {(myMember?.streak_current ?? profile?.streak_current ?? 0) > 0 ? (
             <div style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: '6px 14px', color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              🔥 {profile.streak_current} day streak
+              🔥 {myMember?.streak_current ?? profile?.streak_current} day streak
             </div>
           ) : null}
         </div>
