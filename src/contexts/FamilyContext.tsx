@@ -47,14 +47,22 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
       supabase.from('families').select('*').eq('id', familyId).single(),
       supabase.from('profiles').select('*').eq('family_id', familyId),
       supabase.from('chores').select('*').eq('family_id', familyId).order('created_at', { ascending: false }),
-      supabase.from('rewards').select('*').eq('family_id', familyId).eq('is_active', true),
+      supabase.from('rewards').select('*').eq('family_id', familyId),
       supabase.from('redemptions').select('*, reward:rewards(*), redeemer:profiles!redemptions_redeemed_by_fkey(*)').eq('family_id', familyId).order('requested_at', { ascending: false }),
       supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(50),
     ])
 
     if (familyData) setFamily(familyData as Family)
-    if (membersData) setMembers(membersData as Profile[])
-    if (choresData) setChores(choresData as Chore[])
+    const profileList = (membersData ?? []) as Profile[]
+    if (membersData) setMembers(profileList)
+    if (choresData) {
+      const memberMap = new Map(profileList.map(p => [p.id, p]))
+      setChores((choresData as Chore[]).map(c => ({
+        ...c,
+        assignee: c.assigned_to ? memberMap.get(c.assigned_to) : undefined,
+        assigner: memberMap.get(c.assigned_by),
+      })))
+    }
     if (rewardsData) setRewards(rewardsData as Reward[])
     if (redemptionsData) setRedemptions(redemptionsData as Redemption[])
     if (notificationsData) setNotifications(notificationsData as Notification[])
@@ -143,7 +151,7 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           gap: 8, padding: '10px 16px',
-          background: '#5C5CE0', color: '#fff', fontSize: 13, fontWeight: 600,
+          background: 'var(--primary)', color: '#fff', fontSize: 13, fontWeight: 600,
         }}>
           <div className="spinner" style={{ width: 16, height: 16, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
           Refreshing…
