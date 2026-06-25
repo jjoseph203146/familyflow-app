@@ -144,6 +144,7 @@ create trigger on_auth_user_created
 --    and assigns the calling user to it.
 -- ─────────────────────────────────────────
 
+drop function if exists public.create_family(text, text);
 create or replace function public.create_family(p_name text, p_role text default 'parent')
 returns void as $$
 declare
@@ -175,6 +176,7 @@ $$ language plpgsql security definer;
 --    by invite code.
 -- ─────────────────────────────────────────
 
+drop function if exists public.join_family(text, text);
 create or replace function public.join_family(p_invite_code text, p_role text default 'child')
 returns void as $$
 declare
@@ -202,6 +204,7 @@ $$ language plpgsql security definer;
 --    Child submits (or resubmits) photo proof for a chore.
 -- ─────────────────────────────────────────
 
+drop function if exists public.submit_proof(uuid, text, text, boolean);
 create or replace function public.submit_proof(
   p_chore_id uuid,
   p_photo_url text default null,
@@ -244,6 +247,7 @@ $$ language plpgsql security definer;
 --    Parent approves a submitted chore and awards points.
 -- ─────────────────────────────────────────
 
+drop function if exists public.approve_chore(uuid, uuid, int);
 create or replace function public.approve_chore(
   p_chore_id uuid,
   p_approver_id uuid,
@@ -304,6 +308,7 @@ $$ language plpgsql security definer;
 --    Parent rejects a submitted chore and sends it back.
 -- ─────────────────────────────────────────
 
+drop function if exists public.reject_chore(uuid, text);
 create or replace function public.reject_chore(
   p_chore_id uuid,
   p_comment text default null
@@ -345,6 +350,7 @@ $$ language plpgsql security definer;
 --    Child spends points to redeem a reward.
 -- ─────────────────────────────────────────
 
+drop function if exists public.redeem_reward(uuid, int);
 create or replace function public.redeem_reward(
   p_reward_id uuid,
   p_points_cost int
@@ -396,6 +402,7 @@ $$ language plpgsql security definer;
 --     Parent manually adjusts a child's point balance.
 -- ─────────────────────────────────────────
 
+drop function if exists public.set_member_points(uuid, int);
 create or replace function public.set_member_points(
   p_member_id uuid,
   p_points int
@@ -535,12 +542,39 @@ create policy "users can update their own notifications"
 -- ─────────────────────────────────────────
 -- 13. REALTIME
 --     Enable realtime for tables the frontend subscribes to.
+--     Wrapped in DO block so it doesn't error if already added.
 -- ─────────────────────────────────────────
 
-alter publication supabase_realtime add table chores;
-alter publication supabase_realtime add table profiles;
-alter publication supabase_realtime add table redemptions;
-alter publication supabase_realtime add table notifications;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'chores'
+  ) then
+    alter publication supabase_realtime add table chores;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'profiles'
+  ) then
+    alter publication supabase_realtime add table profiles;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'redemptions'
+  ) then
+    alter publication supabase_realtime add table redemptions;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table notifications;
+  end if;
+end $$;
 
 
 -- ─────────────────────────────────────────
