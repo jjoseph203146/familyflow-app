@@ -76,16 +76,16 @@ function AppRoutes() {
       <FamilyProvider>
         <Routes>
           <Route path="/parent" element={<ParentDashboard />} />
-          <Route path="/parent/add-chore" element={<AddChore />} />
+          <Route path="/parent/chores/new" element={<AddChore />} />
           <Route path="/parent/review" element={<ReviewProof />} />
           <Route path="/parent/chores" element={<AllChores />} />
-          <Route path="/parent/member/:id" element={<MemberDetail />} />
+          <Route path="/parent/chores/:id" element={<ChoreDetail />} />
+          <Route path="/parent/members/:id" element={<MemberDetail />} />
           <Route path="/parent/rewards" element={<RewardsManager />} />
           <Route path="/parent/redemptions" element={<RedemptionQueue />} />
           <Route path="/parent/activity" element={<ParentActivityFeed />} />
           <Route path="/parent/settings" element={<Settings />} />
           <Route path="/parent/invite" element={<InviteMembers />} />
-          <Route path="/parent/chore/:id" element={<ChoreDetail />} />
           <Route path="*" element={<Navigate to="/parent" replace />} />
         </Routes>
       </FamilyProvider>

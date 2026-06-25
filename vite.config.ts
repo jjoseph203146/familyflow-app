@@ -7,12 +7,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'favicon.png', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
         name: 'FamilyFlow',
         short_name: 'FamilyFlow',
         description: 'Family chore management — assign, track, and reward.',
-        theme_color: '#5C5CE0',
+        theme_color: '#15997A',
         background_color: '#F9F9F7',
         display: 'standalone',
         orientation: 'portrait',

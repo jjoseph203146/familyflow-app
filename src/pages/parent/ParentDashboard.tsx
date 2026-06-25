@@ -132,14 +132,14 @@ export function ParentDashboard() {
             <Button leftIcon={<Plus size={17} strokeWidth={2.4} />} onClick={() => navigate('/parent/chores/new')}>
               Assign chore
             </Button>
-            <Button variant="secondary" leftIcon={<Gift size={16} />} onClick={() => navigate('/parent/rewards/new')}>
+            <Button variant="secondary" leftIcon={<Gift size={16} />} onClick={() => navigate('/parent/rewards')}>
               Add reward
             </Button>
           </div>
 
           {children.length > 0 && (
             <>
-              <SectionHeader label="Kids · today" action="View all" onAction={() => navigate('/parent/members')} />
+              <SectionHeader label="Kids · today" action="View all" onAction={() => navigate('/parent/chores')} />
               {children.map((child) => {
                 const { done, total } = childDayProgress(child, chores)
                 const pct = total ? (done / total) * 100 : 0
