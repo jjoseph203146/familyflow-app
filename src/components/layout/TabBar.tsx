@@ -1,86 +1,67 @@
-import { useNavigate, useLocation } from 'react-router-dom'
-import { Home, CheckSquare, Gift, Bell, Settings } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Home, ClipboardList, Gift, Bell, SlidersHorizontal } from 'lucide-react'
 import { useFamily } from '@/contexts/FamilyContext'
-import { useAuth } from '@/contexts/AuthContext'
+
+function Tab({
+  to,
+  label,
+  icon,
+  active,
+  badge,
+}: {
+  to: string
+  label: string
+  icon: ReactNode
+  active: boolean
+  badge?: boolean
+}) {
+  const navigate = useNavigate()
+  return (
+    <button className={`nav-tab ${active ? 'is-active' : ''}`} onClick={() => navigate(to)}>
+      {icon}
+      <span>{label}</span>
+      {badge && <span className="nav-tab__badge" />}
+    </button>
+  )
+}
 
 export function ParentTabBar() {
-  const navigate = useNavigate()
   const { pathname } = useLocation()
   const { unreadCount } = useFamily()
-
-  const tabs = [
-    { icon: Home, label: 'Home', path: '/parent' },
-    { icon: CheckSquare, label: 'Chores', path: '/parent/chores' },
-    { icon: Gift, label: 'Rewards', path: '/parent/rewards' },
-    { icon: Bell, label: 'Activity', path: '/parent/activity', badge: unreadCount },
-    { icon: Settings, label: 'Settings', path: '/parent/settings' },
-  ]
-
+  const startsWith = (p: string) => pathname === p || pathname.startsWith(p + '/')
   return (
-    <nav className="tab-bar">
-      {tabs.map(({ icon: Icon, label, path, badge }) => (
-        <button
-          key={path}
-          className={`tab-item ${pathname === path || (path !== '/parent' && pathname.startsWith(path)) ? 'active' : ''}`}
-          onClick={() => navigate(path)}
-        >
-          <div style={{ position: 'relative' }}>
-            <Icon size={22} />
-            {badge && badge > 0 ? (
-              <span style={{
-                position: 'absolute', top: -4, right: -6,
-                background: '#EF4444', color: '#fff',
-                fontSize: 10, fontWeight: 700,
-                width: 16, height: 16, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {badge > 9 ? '9+' : badge}
-              </span>
-            ) : null}
-          </div>
-          {label}
-        </button>
-      ))}
+    <nav className="bottom-nav">
+      <Tab to="/parent" label="Home" active={pathname === '/parent'} icon={<Home size={20} />} />
+      <Tab to="/parent/chores" label="Chores" active={startsWith('/parent/chores')} icon={<ClipboardList size={20} />} />
+      <Tab to="/parent/rewards" label="Rewards" active={startsWith('/parent/rewards')} icon={<Gift size={20} />} />
+      <Tab
+        to="/parent/activity"
+        label="Activity"
+        active={startsWith('/parent/activity')}
+        icon={<Bell size={20} />}
+        badge={unreadCount > 0}
+      />
+      <Tab to="/parent/settings" label="Settings" active={startsWith('/parent/settings')} icon={<SlidersHorizontal size={20} />} />
     </nav>
   )
 }
 
 export function ChildTabBar() {
-  const navigate = useNavigate()
   const { pathname } = useLocation()
   const { unreadCount } = useFamily()
-
-  const tabs = [
-    { icon: Home, label: 'Home', path: '/child' },
-    { icon: Gift, label: 'Rewards', path: '/child/rewards' },
-    { icon: Bell, label: 'Activity', path: '/child/activity', badge: unreadCount },
-  ]
-
+  const startsWith = (p: string) => pathname === p || pathname.startsWith(p + '/')
   return (
-    <nav className="tab-bar">
-      {tabs.map(({ icon: Icon, label, path, badge }) => (
-        <button
-          key={path}
-          className={`tab-item ${pathname === path ? 'active' : ''}`}
-          onClick={() => navigate(path)}
-        >
-          <div style={{ position: 'relative' }}>
-            <Icon size={22} />
-            {badge && badge > 0 ? (
-              <span style={{
-                position: 'absolute', top: -4, right: -6,
-                background: '#EF4444', color: '#fff',
-                fontSize: 10, fontWeight: 700,
-                width: 16, height: 16, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {badge > 9 ? '9+' : badge}
-              </span>
-            ) : null}
-          </div>
-          {label}
-        </button>
-      ))}
+    <nav className="bottom-nav">
+      <Tab to="/child" label="Home" active={pathname === '/child'} icon={<Home size={20} />} />
+      <Tab to="/child/rewards" label="Rewards" active={startsWith('/child/rewards')} icon={<Gift size={20} />} />
+      <Tab
+        to="/child/activity"
+        label="Activity"
+        active={startsWith('/child/activity')}
+        icon={<Bell size={20} />}
+        badge={unreadCount > 0}
+      />
     </nav>
   )
 }

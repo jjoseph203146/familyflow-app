@@ -1,49 +1,41 @@
 import { useNavigate } from 'react-router-dom'
-import { Users, UserPlus } from 'lucide-react'
+import { Users, UserPlus, ChevronRight } from 'lucide-react'
 
 export function CreateOrJoin() {
   const navigate = useNavigate()
 
   return (
-    <div className="app-shell" style={{ justifyContent: 'center' }}>
-      <div style={{ padding: '40px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ marginBottom: 8 }}>
-          <h1 style={{ marginBottom: 6 }}>Set up your family</h1>
-          <p className="text-muted">Create a new family group, or join one with an invite code.</p>
+    <div className="ff-app">
+      <main className="ff-main ff-main--notab" style={{ paddingTop: 'calc(28px + env(safe-area-inset-top))' }}>
+        <h1 className="h1">Let's get set up</h1>
+        <p className="muted" style={{ fontSize: 13.5, marginTop: 7, lineHeight: 1.5 }}>
+          Start a new family, or join one you've been invited to.
+        </p>
+
+        <div className="flex col" style={{ gap: 12, marginTop: 24 }}>
+          <button className="card card--pad flex items-center" style={{ gap: 13, textAlign: 'left' }} onClick={() => navigate('/onboarding/create')}>
+            <span className="tile tile--lg tile-mint">
+              <Users size={22} />
+            </span>
+            <div className="flex-1">
+              <div className="title">Create a family</div>
+              <div className="meta" style={{ marginTop: 2 }}>Set up chores and rewards for your kids</div>
+            </div>
+            <ChevronRight size={20} color="var(--faint)" />
+          </button>
+
+          <button className="card card--pad flex items-center" style={{ gap: 13, textAlign: 'left' }} onClick={() => navigate('/onboarding/join')}>
+            <span className="tile tile--lg tile-sky">
+              <UserPlus size={22} />
+            </span>
+            <div className="flex-1">
+              <div className="title">Join a family</div>
+              <div className="meta" style={{ marginTop: 2 }}>Enter an invite code from a parent</div>
+            </div>
+            <ChevronRight size={20} color="var(--faint)" />
+          </button>
         </div>
-
-        <button
-          className="card"
-          style={{ textAlign: 'left', border: 'none', cursor: 'pointer', display: 'flex', gap: 16, alignItems: 'flex-start' }}
-          onClick={() => navigate('/onboarding/create')}
-        >
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: '#EEF0FD', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Users size={24} color="#5C5CE0" />
-          </div>
-          <div>
-            <h3>Create a family</h3>
-            <p className="text-sm text-muted" style={{ marginTop: 4 }}>
-              Start a new family group and invite your household. You'll be the family manager.
-            </p>
-          </div>
-        </button>
-
-        <button
-          className="card"
-          style={{ textAlign: 'left', border: 'none', cursor: 'pointer', display: 'flex', gap: 16, alignItems: 'flex-start' }}
-          onClick={() => navigate('/onboarding/join')}
-        >
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <UserPlus size={24} color="#16A34A" />
-          </div>
-          <div>
-            <h3>Join a family</h3>
-            <p className="text-sm text-muted" style={{ marginTop: 4 }}>
-              Enter an invite code shared by your family manager to join their group.
-            </p>
-          </div>
-        </button>
-      </div>
+      </main>
     </div>
   )
 }

@@ -1,133 +1,152 @@
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Camera } from 'lucide-react'
+import { Camera, ImagePlus, Check, RotateCcw, AlertCircle, MessageSquare, PartyPopper } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
-import { supabase } from '@/lib/supabase'
-import { AppLayout, TopBar } from '@/components/layout/AppLayout'
+import { TopBar } from '@/components/layout/AppLayout'
+import { Button, EmptyState, ProofImage, StatusPill } from '@/components/ui'
+import { choreVisual } from '@/components/choreVisual'
+import { useProofSubmit } from '@/lib/useProofSubmit'
 
 export function ResubmitChore() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
   const { chores, refresh } = useFamily()
-  const [photo, setPhoto] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const chore = chores.find((c) => c.id === id)
 
-  const chore = chores.find(c => c.id === id)
+  const cameraRef = useRef<HTMLInputElement>(null)
+  const libraryRef = useRef<HTMLInputElement>(null)
+  const [done, setDone] = useState(false)
+  const { preview, pick, submit, submitting, error } = useProofSubmit(id, user?.id)
 
   if (!chore) {
     return (
-      <AppLayout>
-        <TopBar onBack={() => navigate(-1)} title="Resubmit" />
-        <div className="empty-state"><p>Chore not found.</p></div>
-      </AppLayout>
+      <div className="ff-app">
+        <TopBar title="Fix & resubmit" onBack={() => navigate(-1)} />
+        <EmptyState icon={<AlertCircle size={26} />} title="Chore not found" />
+      </div>
     )
   }
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setPhoto(file)
-    setPreview(URL.createObjectURL(file))
-    setError('')
-  }
+  const { Icon, tone } = choreVisual(chore.title)
 
-  async function handleResubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!user || !chore) return
-    if (chore.requires_photo && !photo) { setError('A new photo is required.'); return }
-
-    setLoading(true)
-    setError('')
-
-    let photoUrl: string | null = chore.photo_url
-    let photoPath: string | null = chore.photo_path
-
-    if (photo) {
-      const ext = photo.name.split('.').pop()
-      const path = `${chore.family_id}/${chore.id}/${Date.now()}-resubmit.${ext}`
-      const { error: uploadError } = await supabase.storage.from('chore-photos').upload(path, photo, { upsert: true })
-      if (!uploadError) {
-        const { data: signedData } = await supabase.storage.from('chore-photos').createSignedUrl(path, 60 * 60 * 24 * 30)
-        photoUrl = signedData?.signedUrl ?? null
-        photoPath = path
-      }
+  async function handleSubmit() {
+    const ok = await submit(true, chore!.requires_photo)
+    if (ok) {
+      await refresh()
+      setDone(true)
     }
-
-    await supabase.rpc('submit_proof', {
-      p_chore_id: chore.id,
-      p_photo_url: photoUrl,
-      p_photo_path: photoPath,
-      p_is_resubmit: true,
-    })
-
-    await refresh()
-    setSuccess(true)
-    setTimeout(() => navigate('/child'), 2000)
   }
 
-  if (success) {
+  if (done) {
     return (
-      <AppLayout>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
-          <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>✅</div>
-          <h2>Resubmitted!</h2>
-          <p className="text-muted text-sm" style={{ textAlign: 'center' }}>Your parent will review it again.</p>
-        </div>
-      </AppLayout>
+      <div className="ff-app" style={{ background: 'var(--primary)', color: '#fff' }}>
+        <TopBar transparent />
+        <main className="ff-main ff-main--notab" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+          <div style={{ flex: 1 }} />
+          <div style={{ width: 96, height: 96, borderRadius: 999, background: 'rgba(255,255,255,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 66, height: 66, borderRadius: 999, background: '#fff', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={34} strokeWidth={2.6} />
+            </div>
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.02em' }}>Sent again!</div>
+          <p style={{ fontSize: 14, fontWeight: 500, opacity: 0.92, lineHeight: 1.5, marginTop: 6, maxWidth: 260 }}>
+            Your updated proof is back with your parent for another look.
+          </p>
+          <div className="flex items-center" style={{ gap: 6, background: 'rgba(255,255,255,.18)', padding: '9px 16px', borderRadius: 999, fontSize: 14, fontWeight: 800, marginTop: 16 }}>
+            <PartyPopper size={16} /> +{chore.points_value} pts pending
+          </div>
+          <div style={{ flex: 1 }} />
+          <div style={{ width: '100%', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
+            <button className="btn" style={{ background: '#fff', color: 'var(--primary-ink)' }} onClick={() => navigate('/child')}>
+              Back to my chores
+            </button>
+          </div>
+        </main>
+      </div>
     )
   }
 
   return (
-    <AppLayout>
-      <TopBar title="Redo & resubmit" onBack={() => navigate(-1)} />
-      <div className="screen screen-padded">
-        {/* Parent's rejection feedback */}
-        <div style={{ marginBottom: 20, padding: '14px 16px', background: '#FEF2F2', borderRadius: 12, borderLeft: '3px solid #EF4444' }}>
-          <div className="text-sm" style={{ fontWeight: 700, color: '#B91C1C', marginBottom: 4 }}>Feedback from parent</div>
-          <div style={{ fontSize: 14, color: '#374151' }}>{chore.rejection_comment}</div>
+    <div className="ff-app">
+      <TopBar
+        title="Chore"
+        onClose={() => navigate(-1)}
+        right={<StatusPill status="rejected" />}
+      />
+      <main className="ff-main ff-main--notab">
+        <div className="ff-scroll">
+          {chore.rejection_comment && (
+            <div className="card" style={{ background: 'var(--danger-soft)', borderColor: 'var(--danger-border)', padding: 14 }}>
+              <div className="flex items-center" style={{ gap: 9 }}>
+                <span className="tile tile--sm" style={{ background: 'var(--surface)', color: 'var(--danger)' }}><MessageSquare size={17} /></span>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--danger)' }}>Your parent left a note</div>
+              </div>
+              <div style={{ background: 'var(--surface)', borderRadius: 'var(--r-sm)', padding: '11px 13px', marginTop: 11, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5 }}>
+                "{chore.rejection_comment}"
+              </div>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--danger)', marginTop: 10 }}>
+                Almost there — fix this and send it again.
+              </div>
+            </div>
+          )}
+
+          <div className="card list-row">
+            <span className={`tile tile-${tone}`} style={{ width: 46, height: 46 }}><Icon size={22} /></span>
+            <div className="flex-1">
+              <div className="title">{chore.title}</div>
+              <div className="points" style={{ marginTop: 2 }}>+{chore.points_value} pts when approved</div>
+            </div>
+          </div>
+
+          <div>
+            <div className="section-label" style={{ marginBottom: 7 }}>
+              {preview ? 'Your new photo' : 'Add a new photo'}
+            </div>
+            {preview ? (
+              <div className="proof" style={{ height: 240 }}>
+                <img src={preview} alt="Your new proof" />
+                <button
+                  className="flex items-center"
+                  style={{ position: 'absolute', bottom: 10, right: 10, background: '#fff', color: 'var(--primary-ink)', fontSize: 11, fontWeight: 800, padding: '6px 11px', borderRadius: 999, gap: 5 }}
+                  onClick={() => libraryRef.current?.click()}
+                >
+                  <RotateCcw size={13} /> Retake
+                </button>
+              </div>
+            ) : chore.photo_url ? (
+              <div>
+                <ProofImage src={chore.photo_url} hint="PREVIOUS PHOTO" height={120} dim />
+                <button className="btn btn--secondary" style={{ marginTop: 9 }} onClick={() => cameraRef.current?.click()}>
+                  <Camera size={16} /> Take a new photo
+                </button>
+              </div>
+            ) : (
+              <div className="upload" style={{ height: 200 }} onClick={() => cameraRef.current?.click()}>
+                <Camera size={28} strokeWidth={1.8} />
+                <span style={{ fontSize: 13, fontWeight: 700 }}>Add a photo of your fixed work</span>
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="flex items-center" style={{ gap: 8, color: 'var(--danger)', fontSize: 12.5, fontWeight: 700 }}>
+              <AlertCircle size={16} /> {error}
+            </div>
+          )}
         </div>
 
-        {/* Previous photo */}
-        {chore.photo_url && (
-          <div style={{ marginBottom: 20 }}>
-            <div className="input-label" style={{ marginBottom: 8 }}>Previous photo</div>
-            <img
-              src={chore.photo_url}
-              alt="Previous submission"
-              style={{ width: '100%', borderRadius: 12, aspectRatio: '4/3', objectFit: 'cover', opacity: 0.7 }}
-            />
-          </div>
-        )}
+        <div style={{ flex: 1 }} />
+        <div className="ff-footer">
+          <Button disabled={submitting || (chore.requires_photo && !preview)} leftIcon={<Camera size={17} />} onClick={handleSubmit}>
+            {submitting ? 'Submitting...' : 'Fix & resubmit'}
+          </Button>
+        </div>
+      </main>
 
-        <form onSubmit={handleResubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
-          <div>
-            <div className="input-label" style={{ marginBottom: 8 }}>New photo</div>
-            <div className="photo-slot" onClick={() => fileRef.current?.click()}>
-              {preview ? (
-                <img src={preview} alt="New preview" />
-              ) : (
-                <>
-                  <Camera size={32} color="#9CA3AF" />
-                  <span>Take a new photo</span>
-                </>
-              )}
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={handleFile} />
-          </div>
-
-          {error && <div className="notif-banner warning"><span>⚠️</span> {error}</div>}
-
-          <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
-            {loading ? 'Resubmitting…' : 'Resubmit ✓'}
-          </button>
-        </form>
-      </div>
-    </AppLayout>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+      <input ref={libraryRef} type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+    </div>
   )
 }

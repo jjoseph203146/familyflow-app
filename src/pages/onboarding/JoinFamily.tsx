@@ -1,127 +1,98 @@
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { AlertCircle, UserPlus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import type { UserRole } from '@/types'
 import { TopBar } from '@/components/layout/AppLayout'
+import { Button, Field, Segmented } from '@/components/ui'
+import { PENDING_JOIN_KEY } from '@/lib/format'
 
 export function JoinFamily() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const { refreshProfile } = useAuth()
-  const [suffix, setSuffix] = useState(() => {
-    const raw = searchParams.get('code') ?? ''
-    return raw.startsWith('FAM-') ? raw.slice(4) : raw
-  })
-  const [role, setRole] = useState<'parent' | 'child'>('child')
-  const [error, setError] = useState('')
+  const [params] = useSearchParams()
+  const initialCode = (params.get('code') ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4)
+
+  const [code, setCode] = useState(initialCode)
+  const [role, setRole] = useState<UserRole>('child')
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleJoin(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    const normalized = suffix.trim().toUpperCase()
-    if (!normalized) { setError('Please enter the last 4 characters of your invite code.'); return }
-
+    setError(null)
     setLoading(true)
-    setError('')
-
-    const { error: rpcError } = await supabase.rpc('join_family', {
-      p_invite_code: 'FAM-' + normalized,
+    const { error } = await supabase.rpc('join_family', {
+      p_invite_code: code.toUpperCase(),
       p_role: role,
     })
-
-    if (rpcError) {
-      setError(rpcError.message.includes('Invalid invite code')
-        ? "That code doesn't match any family. Double-check it and try again."
-        : rpcError.message)
+    if (error) {
       setLoading(false)
+      setError(error.message)
       return
     }
-
+    localStorage.removeItem(PENDING_JOIN_KEY)
     await refreshProfile()
     navigate(role === 'parent' ? '/parent' : '/child')
   }
 
-  function handleSuffixChange(val: string) {
-    setSuffix(val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4))
-    setError('')
-  }
-
   return (
-    <div className="app-shell">
-      <TopBar onBack={() => navigate('/onboarding')} />
-      <div className="screen screen-padded">
-        <div style={{ padding: '8px 0 24px' }}>
-          <h1>Join a family</h1>
-          <p className="text-muted" style={{ marginTop: 6 }}>Enter the invite code from your family manager.</p>
-        </div>
+    <div className="ff-app">
+      <TopBar onBack={() => navigate(-1)} />
+      <main className="ff-main ff-main--notab">
+        <span className="tile tile--lg tile-sky">
+          <UserPlus size={24} />
+        </span>
+        <h1 className="h1" style={{ marginTop: 16 }}>Enter your invite code</h1>
+        <p className="muted" style={{ fontSize: 13.5, marginTop: 7, lineHeight: 1.5 }}>
+          Ask a parent for the 4-character code from their FamilyFlow.
+        </p>
 
-        <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="input-group">
-            <label className="input-label">Invite code</label>
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              border: `2px solid ${error ? '#EF4444' : '#E5E7EB'}`,
-              borderRadius: 12, overflow: 'hidden', background: '#fff',
-            }}>
-              <span style={{
-                padding: '0 4px 0 16px',
-                fontSize: 22, fontWeight: 800,
-                color: '#5C5CE0', letterSpacing: '0.1em',
-                userSelect: 'none', whiteSpace: 'nowrap',
-              }}>
-                FAM-
-              </span>
+        <form onSubmit={handleSubmit} className="flex col" style={{ gap: 16, marginTop: 22 }}>
+          <Field label="Invite code">
+            <div className="flex items-center" style={{ gap: 10 }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--faint)', letterSpacing: '.06em' }}>FAM-</span>
               <input
-                className="input-field"
-                placeholder="XXXX"
-                value={suffix}
-                onChange={e => handleSuffixChange(e.target.value)}
-                style={{
-                  fontSize: 22, fontWeight: 800, letterSpacing: '0.1em',
-                  border: 'none', borderRadius: 0, padding: '14px 16px 14px 0',
-                  flex: 1, outline: 'none', boxShadow: 'none',
-                }}
-                maxLength={4}
+                className="input"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4))}
+                placeholder="3K9Q"
+                inputMode="text"
                 autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
+                maxLength={4}
+                required
+                style={{ fontSize: 22, fontWeight: 800, letterSpacing: '.18em', textAlign: 'center' }}
               />
             </div>
-          </div>
-
-          <div>
-            <div className="input-label" style={{ marginBottom: 10 }}>Your role</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              {(['parent', 'child'] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  style={{
-                    flex: 1, padding: '14px 16px',
-                    borderRadius: 12, border: `2px solid ${role === r ? '#5C5CE0' : '#E5E7EB'}`,
-                    background: role === r ? '#EEF0FD' : '#fff',
-                    color: role === r ? '#5C5CE0' : '#6B7280',
-                    fontWeight: 600, fontSize: 15, cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {r === 'parent' ? '👩 Parent' : '🧒 Child'}
-                </button>
-              ))}
-            </div>
-          </div>
+          </Field>
+          <Field label="Your role">
+            <Segmented
+              value={role}
+              onChange={setRole}
+              options={[
+                { value: 'child', label: 'Child' },
+                { value: 'parent', label: 'Parent' },
+              ]}
+            />
+          </Field>
 
           {error && (
-            <div className="notif-banner warning">
-              <span>⚠️</span> {error}
+            <div className="flex items-center" style={{ gap: 8, background: 'var(--danger-soft)', border: '1px solid var(--danger-border)', color: 'var(--danger)', borderRadius: 'var(--r-md)', padding: '11px 13px', fontSize: 12.5, fontWeight: 700 }}>
+              <AlertCircle size={16} />
+              {error}
             </div>
           )}
-
-          <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
-            {loading ? 'Joining…' : 'Join family'}
-          </button>
         </form>
+
+        <div style={{ flex: 1 }} />
+      </main>
+
+      <div className="ff-footer">
+        <Button onClick={handleSubmit} disabled={loading || code.length < 4}>
+          {loading ? 'Joining…' : 'Join family'}
+        </Button>
       </div>
     </div>
   )

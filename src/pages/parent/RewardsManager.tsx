@@ -1,180 +1,199 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Gift, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
 import { supabase } from '@/lib/supabase'
-import { Modal, ConfirmDialog } from '@/components/ui/Modal'
+import type { Reward } from '@/types'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ParentTabBar } from '@/components/layout/TabBar'
-import { Reward } from '@/types'
+import { Switch, EmptyState, Button, BottomSheet, Field, Input } from '@/components/ui'
+import { rewardVisual } from '@/components/rewardVisual'
 
-const TEMPLATES = [
-  { title: '$5 allowance', points_required: 100, reward_type: 'money' as const, emoji: '💵' },
-  { title: '30 min extra screen time', points_required: 50, reward_type: 'screen_time' as const, emoji: '📱' },
-  { title: 'Choose dinner', points_required: 75, reward_type: 'privilege' as const, emoji: '🍕' },
-  { title: 'Skip one chore', points_required: 150, reward_type: 'privilege' as const, emoji: '😌' },
-  { title: 'Movie night pick', points_required: 100, reward_type: 'privilege' as const, emoji: '🎬' },
-  { title: '$10 spending money', points_required: 200, reward_type: 'money' as const, emoji: '💰' },
+type RewardType = Reward['reward_type']
+
+const TYPES: { value: RewardType; label: string }[] = [
+  { value: 'money', label: 'Money' },
+  { value: 'screen_time', label: 'Screen time' },
+  { value: 'privilege', label: 'Privilege' },
+  { value: 'custom', label: 'Custom' },
 ]
+
+const TEMPLATES: { title: string; type: RewardType; points: number }[] = [
+  { title: 'Movie night', type: 'privilege', points: 400 },
+  { title: '1 hour screen time', type: 'screen_time', points: 150 },
+  { title: '$10 cash', type: 'money', points: 1000 },
+  { title: 'Pick dinner', type: 'privilege', points: 250 },
+]
+const POINT_PRESETS = [100, 250, 400, 750, 1000]
 
 export function RewardsManager() {
   const navigate = useNavigate()
   const { user, profile } = useAuth()
   const { rewards, refresh } = useFamily()
-  const [showAdd, setShowAdd] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
 
+  const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
-  const [points, setPoints] = useState('')
-  const [rewardType, setRewardType] = useState<Reward['reward_type']>('custom')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [type, setType] = useState<RewardType>('privilege')
+  const [points, setPoints] = useState(400)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault()
-    if (!title.trim() || !points) { setError('Fill in all fields.'); return }
-    setLoading(true)
+  const active = rewards.filter((r) => r.is_active)
+  const paused = rewards.filter((r) => !r.is_active)
+
+  async function setActiveState(id: string, value: boolean) {
+    await supabase.from('rewards').update({ is_active: value }).eq('id', id)
+    await refresh()
+  }
+
+  function openAdd() {
+    setTitle('')
+    setType('privilege')
+    setPoints(400)
+    setError(null)
+    setAdding(true)
+  }
+
+  function applyTemplate(t: (typeof TEMPLATES)[number]) {
+    setTitle(t.title)
+    setType(t.type)
+    setPoints(t.points)
+  }
+
+  async function create() {
+    if (!profile?.family_id || !user) return
+    setSaving(true)
+    setError(null)
     const { error } = await supabase.from('rewards').insert({
-      family_id: profile?.family_id,
+      family_id: profile.family_id,
       title: title.trim(),
-      points_required: parseInt(points),
-      reward_type: rewardType,
-      created_by: user?.id,
+      description: null,
+      points_required: points,
+      reward_type: type,
+      created_by: user.id,
       is_active: true,
     })
-    if (error) { setError(error.message); setLoading(false); return }
+    setSaving(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setAdding(false)
     await refresh()
-    setTitle(''); setPoints(''); setRewardType('custom'); setError('')
-    setLoading(false)
-    setShowAdd(false)
-  }
-
-  async function handleDelete() {
-    if (!deleteId) return
-    await supabase.from('rewards').update({ is_active: false }).eq('id', deleteId)
-    await refresh()
-    setDeleteId(null)
-  }
-
-  function applyTemplate(t: typeof TEMPLATES[0]) {
-    setTitle(t.title)
-    setPoints(String(t.points_required))
-    setRewardType(t.reward_type)
   }
 
   return (
     <AppLayout tabBar={<ParentTabBar />}>
-      <TopBar title="Rewards" right={
-        <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>
-          <Plus size={16} /> Add reward
-        </button>
-      } />
+      <TopBar
+        title="Rewards"
+        right={
+          <button className="icon-btn" style={{ background: 'var(--primary)', color: '#fff', border: 'none' }} onClick={openAdd} aria-label="New reward">
+            <Plus size={18} strokeWidth={2.4} />
+          </button>
+        }
+      />
+      <main className="ff-main">
+        <div className="ff-scroll" style={{ gap: 10 }}>
+          {rewards.length === 0 && (
+            <EmptyState
+              icon={<Gift size={26} />}
+              title="No rewards yet"
+              body="Create a reward your kids can work toward — it's what makes points worth earning."
+              action={<Button onClick={openAdd}>Create a reward</Button>}
+            />
+          )}
 
-      <div className="screen">
-        {rewards.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">🎁</div>
-            <h3>No rewards yet</h3>
-            <p className="text-sm text-muted">Add rewards that your family can redeem with points.</p>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)} style={{ marginTop: 8 }}>
-              Add first reward
-            </button>
-          </div>
-        ) : (
-          <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {rewards.map(reward => (
-              <div key={reward.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ fontSize: 28 }}>{REWARD_EMOJI[reward.reward_type]}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>{reward.title}</div>
-                  <div className="text-sm text-muted">⭐ {reward.points_required} points</div>
+          {active.map((r) => {
+            const { Icon, tone, label } = rewardVisual(r.reward_type)
+            return (
+              <div key={r.id} className="card list-row">
+                <span className={`tile tile-${tone}`}><Icon size={19} /></span>
+                <div className="flex-1">
+                  <div className="title" style={{ fontSize: 13.5 }}>{r.title}</div>
+                  <div className="meta" style={{ color: 'var(--primary-ink)', fontWeight: 700, marginTop: 2 }}>
+                    {r.points_required} pts · {label}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setDeleteId(reward.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 6 }}
-                >
-                  <Trash2 size={18} />
-                </button>
+                <Switch on onChange={() => setActiveState(r.id, false)} />
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )
+          })}
 
-      {/* Add reward sheet */}
-      <Modal open={showAdd} onClose={() => { setShowAdd(false); setError('') }}>
-        <h3 style={{ marginBottom: 16 }}>Add a reward</h3>
+          {paused.length > 0 && <div className="section-label" style={{ marginTop: 4 }}>Paused</div>}
+          {paused.map((r) => {
+            const { Icon, tone, label } = rewardVisual(r.reward_type)
+            return (
+              <div key={r.id} className="card list-row" style={{ opacity: 0.62 }}>
+                <span className={`tile tile-${tone}`}><Icon size={19} /></span>
+                <div className="flex-1">
+                  <div className="title" style={{ fontSize: 13.5 }}>{r.title}</div>
+                  <div className="meta" style={{ marginTop: 2 }}>{r.points_required} pts · {label}</div>
+                </div>
+                <Switch on={false} onChange={() => setActiveState(r.id, true)} />
+              </div>
+            )
+          })}
+        </div>
+      </main>
 
-        {/* Templates */}
-        <div style={{ marginBottom: 16 }}>
-          <div className="section-title" style={{ marginBottom: 8 }}>Suggestions</div>
-          <div className="scroll-x">
-            {TEMPLATES.map(t => (
-              <button
-                key={t.title}
-                onClick={() => applyTemplate(t)}
-                style={{
-                  flexShrink: 0, padding: '8px 14px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB', background: '#fff',
-                  cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}
-              >
-                <span>{t.emoji}</span> {t.title}
+      <BottomSheet open={adding} onClose={() => setAdding(false)}>
+        <div style={{ maxHeight: '76vh', overflowY: 'auto' }}>
+          <h2 className="h2" style={{ marginBottom: 12 }}>New reward</h2>
+
+          <div className="section-label" style={{ marginBottom: 8 }}>Quick start</div>
+          <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
+            {TEMPLATES.map((t) => (
+              <button key={t.title} className="chip" style={{ flex: 'none' }} onClick={() => applyTemplate(t)}>
+                {t.title}
               </button>
             ))}
           </div>
-        </div>
 
-        <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="input-group">
-            <label className="input-label">Reward name</label>
-            <input className="input-field" placeholder="e.g. $5 allowance" value={title} onChange={e => setTitle(e.target.value)} />
-          </div>
-          <div className="input-group">
-            <label className="input-label">Points required</label>
-            <input className="input-field" type="number" placeholder="e.g. 100" value={points} onChange={e => setPoints(e.target.value)} />
-          </div>
-          <div>
-            <div className="input-label" style={{ marginBottom: 8 }}>Type</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {(['money', 'screen_time', 'privilege', 'custom'] as Reward['reward_type'][]).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`chip ${rewardType === t ? 'active' : ''}`}
-                  onClick={() => setRewardType(t)}
-                >
-                  {REWARD_EMOJI[t]} {t.replace('_', ' ')}
-                </button>
+          <div className="flex col" style={{ gap: 14 }}>
+            <Field label="Reward name">
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Movie night" autoFocus />
+            </Field>
+            <div>
+              <div className="field__label" style={{ marginBottom: 8 }}>Type</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {TYPES.map((t) => {
+                  const { Icon, tone } = rewardVisual(t.value)
+                  const on = type === t.value
+                  return (
+                    <button
+                      key={t.value}
+                      className="card flex items-center"
+                      style={{ gap: 8, padding: 10, borderColor: on ? 'var(--primary)' : 'var(--line)', borderWidth: on ? 1.5 : 1, boxShadow: 'none' }}
+                      onClick={() => setType(t.value)}
+                    >
+                      <span className={`tile tile--sm tile-${tone}`}><Icon size={15} /></span>
+                      <span style={{ fontSize: 12, fontWeight: on ? 800 : 700 }}>{t.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <Field label="Points to unlock">
+              <Input type="number" min={1} value={points} onChange={(e) => setPoints(Math.max(1, Number(e.target.value) || 0))} />
+            </Field>
+            <div className="chips" style={{ marginTop: -4 }}>
+              {POINT_PRESETS.map((p) => (
+                <button key={p} className={`chip chip--soft ${points === p ? 'is-on' : ''}`} onClick={() => setPoints(p)}>{p}</button>
               ))}
             </div>
-          </div>
-          {error && <div className="notif-banner warning"><span>⚠️</span> {error}</div>}
-          <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-            {loading ? 'Adding…' : 'Add reward'}
-          </button>
-        </form>
-      </Modal>
 
-      <ConfirmDialog
-        open={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={handleDelete}
-        title="Remove this reward?"
-        description="Members won't be able to see or redeem this reward anymore."
-        confirmLabel="Yes, remove"
-        cancelLabel="Cancel"
-        danger
-      />
+            {error && (
+              <div className="flex items-center" style={{ gap: 8, color: 'var(--danger)', fontSize: 12.5, fontWeight: 700 }}>
+                <AlertCircle size={16} /> {error}
+              </div>
+            )}
+            <Button disabled={saving || !title.trim()} onClick={create}>
+              {saving ? 'Creating…' : 'Create reward'}
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
     </AppLayout>
   )
-}
-
-const REWARD_EMOJI: Record<string, string> = {
-  money: '💵',
-  screen_time: '📱',
-  privilege: '✨',
-  custom: '🎁',
 }

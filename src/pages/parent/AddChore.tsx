@@ -1,242 +1,176 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Check, Camera, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
 import { supabase } from '@/lib/supabase'
-import { Avatar } from '@/components/ui/Avatar'
-import { Toggle } from '@/components/ui/Toggle'
-import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import type { ChoreRecurrence } from '@/types'
+import { TopBar } from '@/components/layout/AppLayout'
+import { Avatar, Button, Field, Input, Textarea, Segmented, Switch } from '@/components/ui'
 
-const POINT_PRESETS = [10, 20, 30, 50, 100]
+const POINTS = [5, 10, 15, 25, 50, 100]
 
 export function AddChore() {
   const navigate = useNavigate()
   const { user, profile } = useAuth()
   const { members, refresh } = useFamily()
-  const [step, setStep] = useState(1)
+  const children = members.filter((m) => m.role === 'child')
 
-  // Step 1
+  const [step, setStep] = useState<1 | 2>(1)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [assignedTo, setAssignedTo] = useState<string | null>(null)
-  const [assignAll, setAssignAll] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [allChildren, setAllChildren] = useState(false)
 
-  // Step 2
-  const [dueDate, setDueDate] = useState(defaultDueDate())
+  const [dueDate, setDueDate] = useState('')
   const [recurrence, setRecurrence] = useState<ChoreRecurrence>('none')
-  const [points, setPoints] = useState(30)
-  const [customPoints, setCustomPoints] = useState('')
-  const [requiresPhoto, setRequiresPhoto] = useState(false)
+  const [points, setPoints] = useState(10)
+  const [requiresPhoto, setRequiresPhoto] = useState(true)
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  const assignableMembers = members.filter(m => m.id !== user?.id)
-
-  function handleStep1(e: React.FormEvent) {
-    e.preventDefault()
-    if (!title.trim()) { setError('Please enter a chore name.'); return }
-    if (!assignedTo && !assignAll) { setError('Please assign this chore to someone.'); return }
-    setError('')
-    setStep(2)
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!user) return
-    setLoading(true)
-    setError('')
+  const assigneeIds = allChildren ? children.map((c) => c.id) : [...selected]
+  const canContinue = title.trim().length > 0 && assigneeIds.length > 0
 
-    const finalPoints = customPoints ? parseInt(customPoints) || points : points
-
-    const chore = {
-      family_id: profile?.family_id,
+  async function handleCreate() {
+    if (!profile?.family_id || !user) return
+    setError(null)
+    setSaving(true)
+    const rows = assigneeIds.map((id) => ({
+      family_id: profile.family_id,
       title: title.trim(),
       description: description.trim() || null,
-      assigned_to: assignAll ? null : assignedTo,
+      assigned_to: id,
       assigned_by: user.id,
-      points_value: finalPoints,
+      points_value: points,
       requires_photo: requiresPhoto,
       recurrence,
-      due_date: dueDate || null,
+      due_date: dueDate ? new Date(dueDate).toISOString() : null,
       status: 'pending',
+    }))
+    const { error } = await supabase.from('chores').insert(rows)
+    setSaving(false)
+    if (error) {
+      setError(error.message)
+      return
     }
-
-    const { error } = await supabase.from('chores').insert(chore)
-    if (error) { setError(error.message); setLoading(false); return }
-
     await refresh()
-    navigate(-1)
+    navigate('/parent/chores')
   }
 
   return (
-    <AppLayout>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-        {/* Header */}
-        <div style={{ padding: '16px 16px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button className="btn btn-ghost btn-sm" style={{ padding: 8, minWidth: 0 }} onClick={() => step === 1 ? navigate(-1) : setStep(1)}>
-            ←
-          </button>
-          <span style={{ fontSize: 17, fontWeight: 700, flex: 1 }}>
-            {step === 1 ? 'What & who' : 'When & details'}
-          </span>
-          <span className="text-sm text-muted">Step {step} of 2</span>
-        </div>
+    <div className="ff-app">
+      <TopBar
+        onClose={() => navigate(-1)}
+        title={step === 1 ? 'New chore' : 'Details'}
+        right={<span className="pill pill--assigned">Step {step} of 2</span>}
+      />
 
-        {/* Step progress bar */}
-        <div className="step-bar" style={{ padding: '12px 16px' }}>
-          <div className={`step-bar-segment ${step >= 1 ? 'filled' : ''}`} />
-          <div className={`step-bar-segment ${step >= 2 ? 'filled' : ''}`} />
-        </div>
-
-        <div className="screen screen-padded">
-          {step === 1 ? (
-            <form onSubmit={handleStep1} style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 100 }}>
-              <div className="input-group">
-                <label className="input-label">What needs to be done?</label>
-                <input
-                  className="input-field"
-                  placeholder="e.g. Clean room · Empty dishwasher · Feed the dog"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  autoFocus
-                />
+      {step === 1 ? (
+        <main className="ff-main ff-main--notab">
+          <div className="ff-scroll" style={{ gap: 16, marginTop: 6 }}>
+            <Field label="Chore title">
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Make your bed" autoFocus />
+            </Field>
+            <Field label="Description" hint="optional">
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add any details or instructions…" />
+            </Field>
+            <div>
+              <div className="field__label" style={{ marginBottom: 8 }}>Assign to</div>
+              <div className="chips">
+                {children.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`chip ${!allChildren && selected.has(c.id) ? 'is-on' : ''}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 7, opacity: allChildren ? 0.5 : 1 }}
+                    onClick={() => !allChildren && toggle(c.id)}
+                  >
+                    <Avatar name={c.full_name} url={c.avatar_url} seed={c.id} size="sm" />
+                    {c.full_name.split(' ')[0]}
+                  </button>
+                ))}
               </div>
-
-              <div className="input-group">
-                <label className="input-label">Details <span className="text-muted">(optional)</span></label>
-                <textarea
-                  className="input-field"
-                  placeholder="Add any specific instructions…"
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                />
+              <div className="card row-toggle" style={{ marginTop: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>Assign to all kids</span>
+                <Switch on={allChildren} onChange={setAllChildren} />
               </div>
-
-              <div>
-                <div className="input-label" style={{ marginBottom: 12 }}>Assign to</div>
-                <Toggle
-                  on={assignAll}
-                  onChange={(v) => { setAssignAll(v); if (v) setAssignedTo(null) }}
-                  label="Assign to all family members"
-                />
-
-                {!assignAll && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
-                    {assignableMembers.map(member => (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={() => setAssignedTo(assignedTo === member.id ? null : member.id)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '10px 14px', borderRadius: 12,
-                          border: `2px solid ${assignedTo === member.id ? '#5C5CE0' : '#E5E7EB'}`,
-                          background: assignedTo === member.id ? '#EEF0FD' : '#fff',
-                          cursor: 'pointer', fontFamily: 'inherit',
-                        }}
-                      >
-                        <Avatar name={member.full_name} userId={member.id} size="sm" imageUrl={member.avatar_url} />
-                        <span style={{ fontSize: 14, fontWeight: 600, color: assignedTo === member.id ? '#5C5CE0' : '#374151' }}>
-                          {member.full_name.split(' ')[0]}
-                        </span>
-                      </button>
-                    ))}
-                    {assignableMembers.length === 0 && (
-                      <p className="text-sm text-muted">No other family members yet. You can still create this chore.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {error && <div className="notif-banner warning"><span>⚠️</span> {error}</div>}
-
-              <button type="submit" className="btn btn-primary btn-full btn-lg" style={{ marginTop: 4 }}>
-                Next: When & details →
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 100 }}>
-              <div className="input-group">
-                <label className="input-label">Due date</label>
-                <input
-                  className="input-field"
-                  type="datetime-local"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <div className="input-label" style={{ marginBottom: 10 }}>Repeats</div>
-                <div className="segment">
-                  {(['none', 'daily', 'weekly', 'monthly'] as ChoreRecurrence[]).map(r => (
-                    <button
-                      key={r}
-                      type="button"
-                      className={`seg-btn ${recurrence === r ? 'active' : ''}`}
-                      onClick={() => setRecurrence(r)}
-                    >
-                      {r === 'none' ? 'One time' : r.charAt(0).toUpperCase() + r.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="input-label" style={{ marginBottom: 10 }}>Points value</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {POINT_PRESETS.map(p => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => { setPoints(p); setCustomPoints('') }}
-                      style={{
-                        padding: '9px 16px', borderRadius: 10,
-                        border: `2px solid ${points === p && !customPoints ? '#5C5CE0' : '#E5E7EB'}`,
-                        background: points === p && !customPoints ? '#EEF0FD' : '#fff',
-                        color: points === p && !customPoints ? '#5C5CE0' : '#374151',
-                        fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                  <input
-                    className="input-field"
-                    placeholder="Custom"
-                    value={customPoints}
-                    onChange={e => { setCustomPoints(e.target.value.replace(/\D/g, '')); setPoints(0) }}
-                    style={{ width: 90, textAlign: 'center', fontWeight: 700 }}
-                  />
-                </div>
-              </div>
-
-              <Toggle
-                on={requiresPhoto}
-                onChange={setRequiresPhoto}
-                label="Require photo proof"
-                description="Best for chores that need visual confirmation, like cleaning or yard work."
+            </div>
+          </div>
+          <div style={{ flex: 1 }} />
+          <div className="ff-footer">
+            <Button disabled={!canContinue} onClick={() => setStep(2)}>Continue</Button>
+          </div>
+        </main>
+      ) : (
+        <main className="ff-main ff-main--notab">
+          <div className="ff-scroll" style={{ gap: 16, marginTop: 6 }}>
+            <Field label="Due date" hint="optional">
+              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </Field>
+            <div>
+              <div className="field__label" style={{ marginBottom: 8 }}>Repeats</div>
+              <Segmented
+                value={recurrence}
+                onChange={setRecurrence}
+                options={[
+                  { value: 'none', label: 'None' },
+                  { value: 'daily', label: 'Daily' },
+                  { value: 'weekly', label: 'Weekly' },
+                  { value: 'monthly', label: 'Monthly' },
+                ]}
               />
-
-              {error && <div className="notif-banner warning"><span>⚠️</span> {error}</div>}
-
-              <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading} style={{ marginTop: 4 }}>
-                {loading ? 'Creating chore…' : 'Create chore ✓'}
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-    </AppLayout>
+            </div>
+            <div>
+              <div className="field__label" style={{ marginBottom: 8 }}>Points</div>
+              <div className="chips">
+                {POINTS.map((p) => (
+                  <button key={p} type="button" className={`chip ${points === p ? 'is-on' : ''}`} onClick={() => setPoints(p)}>
+                    {p}
+                  </button>
+                ))}
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={points}
+                  onChange={(e) => setPoints(Math.max(1, Number(e.target.value) || 0))}
+                  style={{ width: 80, padding: '8px 10px', textAlign: 'center', fontSize: 13 }}
+                  aria-label="Custom points"
+                />
+              </div>
+            </div>
+            <div className="card row-toggle">
+              <span className="flex items-center" style={{ gap: 8, fontSize: 13, fontWeight: 700 }}>
+                <Camera size={16} color="var(--muted)" /> Require photo proof
+              </span>
+              <Switch on={requiresPhoto} onChange={setRequiresPhoto} />
+            </div>
+            {error && (
+              <div className="flex items-center" style={{ gap: 8, background: 'var(--danger-soft)', border: '1px solid var(--danger-border)', color: 'var(--danger)', borderRadius: 'var(--r-md)', padding: '11px 13px', fontSize: 12.5, fontWeight: 700 }}>
+                <AlertCircle size={16} />
+                {error}
+              </div>
+            )}
+          </div>
+          <div style={{ flex: 1 }} />
+          <div className="ff-footer">
+            <Button disabled={saving} leftIcon={<Check size={17} strokeWidth={2.4} />} onClick={handleCreate}>
+              {saving ? 'Creating…' : assigneeIds.length > 1 ? `Create ${assigneeIds.length} chores` : 'Create chore'}
+            </Button>
+            <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+          </div>
+        </main>
+      )}
+    </div>
   )
-}
-
-function defaultDueDate(): string {
-  const d = new Date()
-  d.setHours(18, 0, 0, 0)
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }

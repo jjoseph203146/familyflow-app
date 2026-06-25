@@ -1,54 +1,48 @@
-import { ReactNode } from 'react'
-import { ArrowLeft, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { ChevronLeft, X } from 'lucide-react'
 
-interface AppLayoutProps {
+export function AppLayout({
+  children,
+  tabBar,
+}: {
   children: ReactNode
   tabBar?: ReactNode
-}
-
-export function AppLayout({ children, tabBar }: AppLayoutProps) {
+}) {
   return (
-    <div className="app-shell">
+    <div className="ff-app">
       {children}
       {tabBar}
     </div>
   )
 }
 
-interface TopBarProps {
+export function TopBar({
+  title,
+  onBack,
+  onClose,
+  right,
+  transparent,
+}: {
   title?: string
   onBack?: () => void
   onClose?: () => void
   right?: ReactNode
   transparent?: boolean
-}
-
-export function TopBar({ title, onBack, onClose, right, transparent }: TopBarProps) {
-  const navigate = useNavigate()
-
+}) {
   return (
-    <div className="top-bar" style={transparent ? { background: 'transparent', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 } : {}}>
-      {(onBack !== undefined) && (
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{ padding: '8px', minWidth: 0 }}
-          onClick={onBack ?? (() => navigate(-1))}
-        >
-          <ArrowLeft size={20} />
+    <header className={`topbar ${transparent ? 'topbar--transparent' : ''}`}>
+      {onBack && (
+        <button className="icon-btn" onClick={onBack} aria-label="Back">
+          <ChevronLeft size={18} />
         </button>
       )}
-      {onClose && (
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{ padding: '8px', minWidth: 0 }}
-          onClick={onClose}
-        >
-          <X size={20} />
+      {onClose && !onBack && (
+        <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <X size={18} />
         </button>
       )}
-      {title && <span className="top-bar-title">{title}</span>}
-      {right && <div style={{ marginLeft: 'auto' }}>{right}</div>}
-    </div>
+      {title ? <h1 className="topbar__title">{title}</h1> : <div className="flex-1" />}
+      {right}
+    </header>
   )
 }

@@ -1,183 +1,170 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Check, X, PartyPopper } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
 import { supabase } from '@/lib/supabase'
-import { Avatar } from '@/components/ui/Avatar'
-import { AppLayout, TopBar } from '@/components/layout/AppLayout'
-import { ParentTabBar } from '@/components/layout/TabBar'
-import { formatDueDate, timeAgo } from '@/lib/utils'
-import { Chore } from '@/types'
+import { TopBar } from '@/components/layout/AppLayout'
+import { Avatar, Button, BottomSheet, Textarea, ProofImage, EmptyState } from '@/components/ui'
+import { relative } from '@/lib/format'
 
-const REJECT_CHIPS = [
-  'Not complete',
-  'Photo unclear',
-  'Please redo',
-  'Other…',
+const BONUSES = [5, 10]
+const REJECT_REASONS = [
+  'Not finished yet',
+  'Photo is unclear',
+  'Please redo more neatly',
+  'Missing part of the task',
+  'Wrong photo',
+  'Other',
 ]
 
 export function ReviewProof() {
   const navigate = useNavigate()
-  const { chores, members, refresh } = useFamily()
-  const [currentIdx, setCurrentIdx] = useState(0)
+  const { user } = useAuth()
+  const { chores, refresh } = useFamily()
+
+  const queue = chores.filter((c) => c.status === 'submitted')
+  const [index, setIndex] = useState(0)
+  const [bonus, setBonus] = useState(0)
   const [rejecting, setRejecting] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [successId, setSuccessId] = useState<string | null>(null)
+  const [reason, setReason] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  const pendingChores = chores.filter(c => c.status === 'submitted')
+  useEffect(() => {
+    if (index >= queue.length && queue.length > 0) setIndex(queue.length - 1)
+  }, [queue.length, index])
 
-  if (pendingChores.length === 0) {
+  const chore = queue[index]
+
+  if (!chore) {
     return (
-      <AppLayout tabBar={<ParentTabBar />}>
-        <TopBar title="Review submissions" onBack={() => navigate(-1)} />
-        <div className="screen">
-          <div className="empty-state">
-            <div className="empty-icon">✅</div>
-            <h3>All caught up!</h3>
-            <p className="text-sm text-muted">No submissions waiting for review.</p>
-          </div>
-        </div>
-      </AppLayout>
+      <div className="ff-app">
+        <TopBar title="Review" onBack={() => navigate('/parent')} />
+        <EmptyState
+          icon={<PartyPopper size={26} />}
+          title="All caught up!"
+          body="There are no submissions waiting for your review."
+          action={<Button onClick={() => navigate('/parent')}>Back to home</Button>}
+        />
+      </div>
     )
   }
 
-  const chore = pendingChores[Math.min(currentIdx, pendingChores.length - 1)]
-  const assignee = members.find(m => m.id === chore.assigned_to)
-
-  async function handleApprove() {
-    setLoading(true)
-    await supabase.rpc('approve_chore', { p_chore_id: chore.id })
+  async function approve() {
+    if (!chore || !user) return
+    setBusy(true)
+    const { error } = await supabase.rpc('approve_chore', {
+      p_chore_id: chore.id,
+      p_approver_id: user.id,
+      p_bonus: bonus,
+    })
+    setBusy(false)
+    if (error) {
+      window.alert(error.message)
+      return
+    }
+    setBonus(0)
     await refresh()
-    setSuccessId(chore.id)
-    setLoading(false)
-    setRejecting(false)
-    setRejectReason('')
-    setTimeout(() => {
-      setSuccessId(null)
-      if (currentIdx >= pendingChores.length - 1) setCurrentIdx(0)
-    }, 1500)
   }
 
-  async function handleReject() {
-    if (!rejectReason.trim()) { return }
-    setLoading(true)
-    await supabase.rpc('reject_chore', { p_chore_id: chore.id, p_reason: rejectReason.trim() })
-    await refresh()
-    setLoading(false)
+  async function confirmReject() {
+    if (!chore) return
+    const comment = reason === 'Other' ? note.trim() : [reason, note.trim()].filter(Boolean).join(' — ')
+    setBusy(true)
+    const { error } = await supabase.rpc('reject_chore', {
+      p_chore_id: chore.id,
+      p_comment: comment || null,
+    })
+    setBusy(false)
+    if (error) {
+      window.alert(error.message)
+      return
+    }
     setRejecting(false)
-    setRejectReason('')
-    if (currentIdx >= pendingChores.length - 1 && currentIdx > 0) setCurrentIdx(currentIdx - 1)
+    setReason(null)
+    setNote('')
+    await refresh()
   }
 
   return (
-    <AppLayout tabBar={<ParentTabBar />}>
+    <div className="ff-app">
       <TopBar
-        title={`Review (${currentIdx + 1}/${pendingChores.length})`}
-        onBack={() => navigate(-1)}
+        title="Review"
+        onClose={() => navigate('/parent')}
+        right={<span className="pill pill--assigned">{index + 1} of {queue.length}</span>}
       />
+      <main className="ff-main ff-main--notab">
+        <div className="ff-scroll">
+          <ProofImage src={chore.photo_url} hint="CHILD'S PHOTO PROOF" height={240} />
 
-      <div className="screen">
-        {/* Success flash */}
-        {successId && (
-          <div className="notif-banner success" style={{ margin: '0 16px 12px' }}>
-            <span>✅</span>
-            <span>Approved! ⭐ {chore.points_value} pts awarded.</span>
+          <div className="flex between items-center">
+            <div>
+              <div className="h2" style={{ fontSize: 17 }}>{chore.title}</div>
+              <div className="flex items-center" style={{ gap: 6, marginTop: 5 }}>
+                <Avatar name={chore.assignee?.full_name} seed={chore.assigned_to} size="sm" />
+                <span className="meta" style={{ fontWeight: 700 }}>
+                  {chore.assignee?.full_name?.split(' ')[0]} · submitted {relative(chore.submitted_at)}
+                </span>
+              </div>
+            </div>
+            <span className="pill pill--points" style={{ fontSize: 12, padding: '6px 10px' }}>+{chore.points_value}</span>
           </div>
-        )}
 
-        {/* Assignee info */}
-        <div style={{ padding: '8px 16px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          {assignee && <Avatar name={assignee.full_name} userId={assignee.id} size="md" imageUrl={assignee.avatar_url} />}
           <div>
-            <h3>{chore.title}</h3>
-            <p className="text-sm text-muted">
-              {assignee?.full_name} · {chore.submitted_at ? timeAgo(chore.submitted_at) : 'Just now'}
-            </p>
+            <div className="section-label" style={{ marginBottom: 7 }}>
+              Add a bonus <span style={{ color: 'var(--faint)', fontWeight: 600 }}>· optional</span>
+            </div>
+            <div className="chips">
+              {BONUSES.map((b) => (
+                <button key={b} className={`chip ${bonus === b ? 'is-on' : ''}`} onClick={() => setBonus(bonus === b ? 0 : b)}>
+                  +{b}
+                </button>
+              ))}
+              {bonus > 0 && !BONUSES.includes(bonus) && <span className="chip is-on">+{bonus}</span>}
+            </div>
           </div>
-          <span className="pill pill-amber" style={{ marginLeft: 'auto' }}>⭐ {chore.points_value}</span>
         </div>
 
-        {/* Photo */}
-        {chore.photo_url ? (
-          <div style={{ padding: '0 16px 16px' }}>
-            <img
-              src={chore.photo_url}
-              alt="Proof"
-              style={{ width: '100%', borderRadius: 16, aspectRatio: '4/3', objectFit: 'cover' }}
-            />
+        <div style={{ flex: 1 }} />
+        <div className="ff-footer">
+          <div className="flex" style={{ gap: 9 }}>
+            <Button variant="danger-soft" leftIcon={<X size={16} />} onClick={() => setRejecting(true)} disabled={busy}>
+              Reject
+            </Button>
+            <Button leftIcon={<Check size={17} strokeWidth={2.6} />} onClick={approve} disabled={busy} style={{ flex: 1.5 }}>
+              Approve{bonus ? ` · +${chore.points_value + bonus}` : ` · +${chore.points_value}`}
+            </Button>
           </div>
-        ) : (
-          <div style={{ padding: '0 16px 16px' }}>
-            <div style={{ background: '#F3F4F6', borderRadius: 16, aspectRatio: '4/3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-              <span style={{ fontSize: 40 }}>📷</span>
-              <p className="text-sm text-muted">No photo required</p>
-            </div>
-          </div>
-        )}
+        </div>
+      </main>
 
-        {/* Rejection section */}
-        {rejecting ? (
-          <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <div className="input-label" style={{ marginBottom: 10 }}>Reason for rejection</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                {REJECT_CHIPS.map(chip => (
-                  <button
-                    key={chip}
-                    type="button"
-                    className={`chip ${rejectReason === chip || (chip === 'Other…' && !REJECT_CHIPS.slice(0, -1).includes(rejectReason) && rejectReason) ? 'active' : ''}`}
-                    onClick={() => {
-                      if (chip === 'Other…') setRejectReason('')
-                      else setRejectReason(chip)
-                    }}
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                className="input-field"
-                placeholder="Write your feedback here…"
-                value={rejectReason}
-                onChange={e => setRejectReason(e.target.value)}
-              />
-              <p className="text-sm text-muted" style={{ marginTop: 6 }}>
-                This feedback will be shown to {assignee?.full_name?.split(' ')[0]} when they resubmit.
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-ghost btn-full" onClick={() => { setRejecting(false); setRejectReason('') }}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-danger btn-full"
-                disabled={!rejectReason.trim() || loading}
-                onClick={handleReject}
-              >
-                {loading ? 'Sending…' : 'Send back'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: '0 16px 16px', display: 'flex', gap: 12 }}>
-            <button className="btn btn-outline btn-full" onClick={() => setRejecting(true)} disabled={loading}>
-              Needs redo
+      <BottomSheet open={rejecting} onClose={() => setRejecting(false)}>
+        <h2 className="h2" style={{ marginBottom: 4 }}>Why send it back?</h2>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 14, lineHeight: 1.45 }}>
+          {chore.assignee?.full_name?.split(' ')[0]} will see this so they know exactly what to fix.
+        </p>
+        <div className="flex col" style={{ gap: 8 }}>
+          {REJECT_REASONS.map((r) => (
+            <button key={r} type="button" className={`option ${reason === r ? 'is-on' : ''}`} onClick={() => setReason(r)}>
+              <span className={`radio ${reason === r ? 'is-on' : ''}`} />
+              <span className="option__title">{r}</span>
             </button>
-            <button className="btn btn-success btn-full" onClick={handleApprove} disabled={loading}>
-              {loading ? 'Approving…' : '✓ Approve'}
-            </button>
+          ))}
+        </div>
+        {reason === 'Other' && (
+          <div className="field" style={{ marginTop: 11 }}>
+            <label className="field__label">Add a short note</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Tell them what to fix…" autoFocus />
           </div>
         )}
-
-        {/* Navigation */}
-        {pendingChores.length > 1 && !rejecting && (
-          <div style={{ padding: '8px 16px 24px', display: 'flex', gap: 10 }}>
-            <button className="btn btn-ghost btn-sm" disabled={currentIdx === 0} onClick={() => setCurrentIdx(i => i - 1)}>← Prev</button>
-            <button className="btn btn-ghost btn-sm" disabled={currentIdx === pendingChores.length - 1} onClick={() => setCurrentIdx(i => i + 1)}>Next →</button>
-          </div>
-        )}
-      </div>
-    </AppLayout>
+        <div className="flex" style={{ gap: 10, marginTop: 14 }}>
+          <Button variant="secondary" onClick={() => setRejecting(false)}>Cancel</Button>
+          <Button variant="danger" onClick={confirmReject} disabled={busy || !reason || (reason === 'Other' && !note.trim())} style={{ flex: 1.4 }}>
+            Send back
+          </Button>
+        </div>
+      </BottomSheet>
+    </div>
   )
 }
-

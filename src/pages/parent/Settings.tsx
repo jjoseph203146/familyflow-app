@@ -1,46 +1,29 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Copy, Share2, LogOut, Trash2 } from 'lucide-react'
+import { Share2, LogOut, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
 import { supabase } from '@/lib/supabase'
-import { Avatar } from '@/components/ui/Avatar'
-import { ConfirmDialog } from '@/components/ui/Modal'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ParentTabBar } from '@/components/layout/TabBar'
+import { Avatar, Button, BottomSheet } from '@/components/ui'
 
 export function Settings() {
   const navigate = useNavigate()
   const { user, profile, signOut } = useAuth()
   const { family, members } = useFamily()
-  const [copied, setCopied] = useState(false)
-  const [showLeave, setShowLeave] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  function copyCode() {
-    if (family?.invite_code) {
-      navigator.clipboard.writeText(family.invite_code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
+  const code = family?.invite_code ?? ''
+  const formatted = code.startsWith('FAM-') ? code : `FAM-${code}`
 
-  function shareCode() {
-    if (navigator.share && family?.invite_code) {
-      navigator.share({ title: 'Join our family on FamilyFlow', text: `Use invite code ${family.invite_code} to join our family.` })
-    } else {
-      copyCode()
-    }
-  }
-
-  async function handleLeave() {
+  async function leaveFamily() {
     if (!user) return
+    setBusy(true)
     await supabase.from('profiles').update({ family_id: null }).eq('id', user.id)
-    await signOut()
-    navigate('/')
-  }
-
-  async function handleSignOut() {
+    setBusy(false)
+    setLeaving(false)
     await signOut()
     navigate('/')
   }
@@ -48,103 +31,88 @@ export function Settings() {
   return (
     <AppLayout tabBar={<ParentTabBar />}>
       <TopBar title="Settings" />
-      <div className="screen">
-        <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
-          {/* Family info */}
-          {family && (
-            <div className="card">
-              <div className="section-title" style={{ marginBottom: 12 }}>Family</div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>{family.name}</div>
-
-              {/* Invite code */}
-              <div style={{ background: '#F3F4F6', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
-                <div className="text-sm text-muted" style={{ marginBottom: 4 }}>Invite code</div>
-                <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '0.12em', color: '#111827', marginBottom: 12 }}>
-                  {family.invite_code}
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-secondary btn-sm btn-full" onClick={copyCode}>
-                    <Copy size={14} /> {copied ? 'Copied!' : 'Copy'}
-                  </button>
-                  <button className="btn btn-primary btn-sm btn-full" onClick={shareCode}>
-                    <Share2 size={14} /> Share
-                  </button>
-                </div>
+      <main className="ff-main">
+        <div className="ff-scroll" style={{ gap: 11 }}>
+          <div className="hero" style={{ borderRadius: 'var(--r-lg)' }}>
+            <div className="eyebrow" style={{ color: '#fff', opacity: 0.85 }}>Your family</div>
+            <div style={{ fontSize: 17, fontWeight: 800, marginTop: 3 }}>{family?.name ?? 'Your family'}</div>
+            <div
+              className="flex between items-center"
+              style={{ background: 'rgba(255,255,255,.18)', borderRadius: 'var(--r-sm)', padding: '9px 12px', marginTop: 11 }}
+            >
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, opacity: 0.85, letterSpacing: '.06em' }}>INVITE CODE</div>
+                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.12em' }}>{formatted}</div>
               </div>
-
-              <button className="btn btn-outline btn-sm btn-full" onClick={() => navigate('/parent/invite')}>
-                Invite members
+              <button
+                className="flex items-center"
+                style={{ gap: 6, background: '#fff', color: 'var(--primary-ink)', borderRadius: 'var(--r-xs)', padding: '8px 12px', fontSize: 11.5, fontWeight: 800 }}
+                onClick={() => navigate('/parent/invite')}
+              >
+                <Share2 size={14} /> Share
               </button>
             </div>
-          )}
+          </div>
 
-          {/* Members */}
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 12 }}>Members ({members.length})</div>
-            {members.map(member => (
-              <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #F3F4F6' }}>
-                <Avatar name={member.full_name} userId={member.id} size="sm" imageUrl={member.avatar_url} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{member.full_name}</div>
-                  <div className="text-sm text-muted" style={{ textTransform: 'capitalize' }}>{member.role}</div>
+          <div className="section-label">Members</div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            {members.map((m, i) => (
+              <div
+                key={m.id}
+                className="list-row"
+                style={{ borderBottom: i < members.length - 1 ? '1px solid var(--line)' : 'none' }}
+              >
+                <Avatar name={m.full_name} url={m.avatar_url} square seed={m.id} size="sm" />
+                <div className="flex-1">
+                  <div className="title" style={{ fontSize: 13 }}>
+                    {m.full_name}
+                    {m.id === user?.id && <span className="meta" style={{ fontWeight: 700 }}> · You</span>}
+                  </div>
                 </div>
-                {member.id === user?.id && <span className="pill pill-indigo">You</span>}
+                <span className={`pill ${m.role === 'parent' ? 'pill--approved' : 'pill--assigned'}`} style={{ textTransform: 'capitalize' }}>
+                  {m.role}
+                </span>
               </div>
             ))}
           </div>
 
-          {/* Account */}
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 12 }}>Account</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{profile?.full_name}</div>
-            <div className="text-sm text-muted" style={{ marginBottom: 16 }}>{profile?.email}</div>
-            <button className="btn btn-ghost btn-sm" onClick={handleSignOut} style={{ width: '100%', justifyContent: 'flex-start', color: '#EF4444' }}>
-              <LogOut size={16} /> Sign out
+          <div className="section-label">Account</div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div className="list-row" style={{ borderBottom: '1px solid var(--line)' }}>
+              <div className="flex-1">
+                <div className="title" style={{ fontSize: 13 }}>{profile?.full_name}</div>
+                <div className="meta" style={{ marginTop: 1 }}>{user?.email}</div>
+              </div>
+            </div>
+            <button className="list-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate('/parent/redemptions')}>
+              <div className="flex-1"><div className="title" style={{ fontSize: 13 }}>Reward requests</div></div>
+              <ChevronRight size={18} color="var(--faint)" />
             </button>
           </div>
 
-          {/* Danger zone */}
-          <div className="card" style={{ borderColor: '#FEE2E2', border: '1px solid' }}>
-            <div className="section-title" style={{ marginBottom: 12, color: '#B91C1C' }}>Danger zone</div>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => setShowLeave(true)}
-              style={{ width: '100%', justifyContent: 'flex-start', color: '#EF4444', marginBottom: 8 }}
-            >
-              <LogOut size={16} /> Leave family
-            </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => setShowDelete(true)}
-              style={{ width: '100%', justifyContent: 'flex-start', color: '#EF4444' }}
-            >
-              <Trash2 size={16} /> Delete family
-            </button>
-          </div>
+          <Button variant="secondary" leftIcon={<LogOut size={16} />} onClick={() => signOut().then(() => navigate('/'))}>
+            Sign out
+          </Button>
+          <button
+            className="center"
+            style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger)', padding: '4px 0 8px' }}
+            onClick={() => setLeaving(true)}
+          >
+            Leave family
+          </button>
         </div>
-      </div>
+      </main>
 
-      <ConfirmDialog
-        open={showLeave}
-        onClose={() => setShowLeave(false)}
-        onConfirm={handleLeave}
-        title="Leave this family?"
-        description="You'll be removed from the family and signed out. Your chore history will remain."
-        confirmLabel="Yes, leave"
-        cancelLabel="Cancel"
-        danger
-      />
-
-      <ConfirmDialog
-        open={showDelete}
-        onClose={() => setShowDelete(false)}
-        onConfirm={handleLeave}
-        title="Delete this family?"
-        description="This will permanently delete the family, all chores, and all data for every member. This cannot be undone."
-        confirmLabel="Yes, delete family"
-        cancelLabel="Cancel"
-        danger
-      />
+      <BottomSheet open={leaving} onClose={() => setLeaving(false)}>
+        <h2 className="h2" style={{ marginBottom: 4 }}>Leave this family?</h2>
+        <p className="muted" style={{ fontSize: 12.5, marginBottom: 14, lineHeight: 1.45 }}>
+          You'll lose access to {family?.name ?? 'this family'}'s chores and rewards. You can rejoin later with an invite code.
+        </p>
+        <div className="flex" style={{ gap: 10 }}>
+          <Button variant="secondary" onClick={() => setLeaving(false)}>Cancel</Button>
+          <Button variant="danger" onClick={leaveFamily} disabled={busy} style={{ flex: 1.3 }}>Leave family</Button>
+        </div>
+      </BottomSheet>
     </AppLayout>
   )
 }

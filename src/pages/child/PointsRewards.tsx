@@ -1,147 +1,136 @@
 import { useState } from 'react'
+import { Flame, Check, Gift, Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
 import { supabase } from '@/lib/supabase'
-import { Modal } from '@/components/ui/Modal'
+import type { Reward } from '@/types'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ChildTabBar } from '@/components/layout/TabBar'
-import { Reward } from '@/types'
-
-const REWARD_EMOJI: Record<string, string> = {
-  money: '💵',
-  screen_time: '📱',
-  privilege: '✨',
-  custom: '🎁',
-}
+import { Button, BottomSheet, ProgressBar, EmptyState } from '@/components/ui'
+import { rewardVisual } from '@/components/rewardVisual'
 
 export function PointsRewards() {
   const { profile } = useAuth()
-  const { members, rewards, refresh } = useFamily()
-  const [confirmReward, setConfirmReward] = useState<Reward | null>(null)
-  const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const { rewards, refresh } = useFamily()
 
-  const myMember = members.find(m => m.id === profile?.id)
-  const pts = myMember?.points_total ?? profile?.points_total ?? 0
-  const unlocked = rewards.filter(r => r.points_required <= pts)
-  const locked = rewards.filter(r => r.points_required > pts).sort((a, b) => a.points_required - b.points_required)
+  const [target, setTarget] = useState<Reward | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function handleRedeem(reward: Reward) {
-    if (!profile) return
-    setLoading(true)
+  const points = profile?.points_total ?? 0
+  const active = rewards.filter((r) => r.is_active)
+  const unlocked = active.filter((r) => points >= r.points_required).sort((a, b) => a.points_required - b.points_required)
+  const locked = active.filter((r) => points < r.points_required).sort((a, b) => a.points_required - b.points_required)
 
-    await supabase.rpc('redeem_reward', { p_reward_id: reward.id, p_points_cost: reward.points_required })
-
+  async function confirmRedeem() {
+    if (!target) return
+    setBusy(true)
+    setError(null)
+    const { error } = await supabase.rpc('redeem_reward', {
+      p_reward_id: target.id,
+      p_points_cost: target.points_required,
+    })
+    setBusy(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setTarget(null)
     await refresh()
-    setLoading(false)
-    setConfirmReward(null)
-    setRedeemSuccess(reward.title)
-    setTimeout(() => setRedeemSuccess(null), 3000)
   }
 
   return (
     <AppLayout tabBar={<ChildTabBar />}>
-      <div className="screen">
-        {/* Hero points display */}
-        <div className="hero-gradient">
-          <div style={{ marginBottom: 8, color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>Your balance</div>
-          <div style={{ fontSize: 52, fontWeight: 800, color: '#fff', lineHeight: 1 }}>⭐ {pts}</div>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 6 }}>points</div>
-          {(myMember?.streak_current ?? profile?.streak_current ?? 0) > 0 ? (
-            <div style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: '6px 14px', color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              🔥 {myMember?.streak_current ?? profile?.streak_current} day streak
+      <TopBar title="Rewards" />
+      <main className="ff-main">
+        <div className="ff-scroll" style={{ gap: 10 }}>
+          <div className="hero hero--gradient flex between items-center" style={{ borderRadius: 'var(--r-lg)', padding: '13px 16px' }}>
+            <div>
+              <div className="eyebrow" style={{ color: '#fff', opacity: 0.85 }}>Your points</div>
+              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.1 }} className="tnum">{points}</div>
             </div>
-          ) : null}
-        </div>
-
-        {redeemSuccess && (
-          <div className="notif-banner success" style={{ margin: '12px 16px 0' }}>
-            <span>🎉</span> Redeemed "{redeemSuccess}" — waiting for parent approval!
+            <span className="flex items-center" style={{ gap: 5, background: 'rgba(255,255,255,.2)', padding: '6px 11px', borderRadius: 999, fontSize: 11, fontWeight: 800 }}>
+              <Flame size={14} fill="currentColor" /> {profile?.streak_current ?? 0} streak
+            </span>
           </div>
-        )}
 
-        <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 80 }}>
-          {/* Unlocked rewards */}
+          {active.length === 0 && (
+            <EmptyState icon={<Gift size={26} />} title="No rewards yet" body="Ask a parent to add some rewards you can work toward!" />
+          )}
+
           {unlocked.length > 0 && (
-            <div>
-              <div className="section-title" style={{ marginBottom: 10 }}>Ready to redeem 🎉</div>
-              {unlocked.map(reward => (
-                <div key={reward.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ fontSize: 32 }}>{REWARD_EMOJI[reward.reward_type]}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>{reward.title}</div>
-                    <div className="text-sm" style={{ color: '#22C55E' }}>⭐ {reward.points_required} pts</div>
-                  </div>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => setConfirmReward(reward)}
-                  >
-                    Redeem
-                  </button>
+            <div className="flex items-center section-label" style={{ gap: 6, color: 'var(--primary-ink)' }}>
+              <Check size={13} strokeWidth={2.6} /> Ready to redeem · {unlocked.length}
+            </div>
+          )}
+          {unlocked.map((r) => {
+            const { Icon, tone } = rewardVisual(r.reward_type)
+            return (
+              <div key={r.id} className="list-row" style={{ background: 'var(--soft-2)', border: '1.5px solid var(--soft-border)', borderRadius: 'var(--r-lg)', boxShadow: '0 10px 20px -14px rgba(21,153,122,.45)' }}>
+                <span className={`tile tile-${tone}`}><Icon size={19} /></span>
+                <div className="flex-1">
+                  <div className="title" style={{ fontSize: 13.5 }}>{r.title}</div>
+                  <div className="points">{r.points_required} pts</div>
                 </div>
-              ))}
-            </div>
-          )}
+                <Button size="sm" onClick={() => { setError(null); setTarget(r) }}>Redeem</Button>
+              </div>
+            )
+          })}
 
-          {/* Locked rewards */}
-          {locked.length > 0 && (
-            <div>
-              <div className="section-title" style={{ marginBottom: 10 }}>Keep earning 🔒</div>
-              {locked.map(reward => {
-                const needed = reward.points_required - pts
-                const progress = Math.max(0, Math.min(100, (pts / reward.points_required) * 100))
-                return (
-                  <div key={reward.id} className="card" style={{ marginBottom: 10, opacity: 0.75 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                      <div style={{ fontSize: 32 }}>{REWARD_EMOJI[reward.reward_type]}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>{reward.title}</div>
-                        <div className="text-sm text-muted">Need {needed} more pts</div>
-                      </div>
-                      <span className="pill pill-gray">🔒 {reward.points_required}</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${progress}%`, background: '#F59E0B' }} />
-                    </div>
+          {locked.length > 0 && <div className="section-label" style={{ marginTop: 4 }}>Keep going</div>}
+          {locked.map((r) => {
+            const { Icon, tone } = rewardVisual(r.reward_type)
+            const toGo = r.points_required - points
+            return (
+              <div key={r.id} className="card card--pad">
+                <div className="flex items-center" style={{ gap: 11 }}>
+                  <span className={`tile tile--sm tile-${tone}`}><Icon size={18} /></span>
+                  <div className="flex-1">
+                    <div className="title" style={{ fontSize: 13.5 }}>{r.title}</div>
+                    <div className="meta" style={{ marginTop: 2 }}>{toGo} points to go</div>
                   </div>
-                )
-              })}
-            </div>
-          )}
-
-          {rewards.length === 0 && (
-            <div className="empty-state">
-              <div className="empty-icon">🎁</div>
-              <p className="text-muted">No rewards set up yet. Ask a parent to add some!</p>
-            </div>
-          )}
+                  <span className="points">{r.points_required}</span>
+                </div>
+                <ProgressBar value={(points / r.points_required) * 100} className="mt" />
+              </div>
+            )
+          })}
         </div>
-      </div>
+      </main>
 
-      {/* Confirm redeem */}
-      {confirmReward && (
-        <Modal open={true} onClose={() => setConfirmReward(null)}>
-          <div style={{ textAlign: 'center', paddingBottom: 8 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>{REWARD_EMOJI[confirmReward.reward_type]}</div>
-            <h3 style={{ marginBottom: 6 }}>Redeem "{confirmReward.title}"?</h3>
-            <p className="text-muted" style={{ fontSize: 14, marginBottom: 20 }}>
-              This will use ⭐ {confirmReward.points_required} points. A parent will need to approve your request.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <button
-                className="btn btn-primary btn-full"
-                onClick={() => handleRedeem(confirmReward)}
-                disabled={loading}
-              >
-                {loading ? 'Redeeming…' : 'Yes, redeem!'}
-              </button>
-              <button className="btn btn-ghost btn-full" onClick={() => setConfirmReward(null)}>
-                Cancel
-              </button>
+      <BottomSheet open={!!target} onClose={() => setTarget(null)}>
+        {target && (() => {
+          const { Icon, tone } = rewardVisual(target.reward_type)
+          return (
+            <div className="center">
+              <span className={`tile tile--lg tile-${tone}`} style={{ margin: '0 auto', width: 56, height: 56 }}><Icon size={26} /></span>
+              <h2 className="h2" style={{ marginTop: 12 }}>Redeem {target.title}?</h2>
+              <p className="muted" style={{ fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
+                This uses <strong style={{ color: 'var(--primary-ink)' }}>{target.points_required} points</strong>. Your parent will get the request to make it happen.
+              </p>
+              <div className="card" style={{ padding: '4px 14px', marginTop: 14, textAlign: 'left' }}>
+                <div className="flex between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+                  <span className="meta" style={{ fontWeight: 700 }}>You have</span>
+                  <span style={{ fontSize: 13, fontWeight: 800 }} className="tnum">{points} pts</span>
+                </div>
+                <div className="flex between" style={{ padding: '10px 0' }}>
+                  <span className="meta" style={{ fontWeight: 700 }}>Left after</span>
+                  <span style={{ fontSize: 13, fontWeight: 800 }} className="tnum">{points - target.points_required} pts</span>
+                </div>
+              </div>
+              {error && (
+                <div style={{ color: 'var(--danger)', fontSize: 12.5, fontWeight: 700, marginTop: 12 }}>{error}</div>
+              )}
+              <div className="flex col" style={{ gap: 8, marginTop: 16 }}>
+                <Button leftIcon={<Sparkles size={17} />} disabled={busy} onClick={confirmRedeem}>
+                  {busy ? 'Redeeming...' : `Redeem for ${target.points_required} pts`}
+                </Button>
+                <Button variant="ghost" onClick={() => setTarget(null)}>Maybe later</Button>
+              </div>
             </div>
-          </div>
-        </Modal>
-      )}
+          )
+        })()}
+      </BottomSheet>
     </AppLayout>
   )
 }

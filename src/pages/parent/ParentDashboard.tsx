@@ -1,215 +1,179 @@
 import { useNavigate } from 'react-router-dom'
-import { Plus, Clock } from 'lucide-react'
+import { ChevronRight, Plus, Gift, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
-import { Avatar } from '@/components/ui/Avatar'
+import type { Chore, Profile } from '@/types'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ParentTabBar } from '@/components/layout/TabBar'
-import { formatDueDate } from '@/lib/utils'
-import { Chore } from '@/types'
+import { ChoreRow } from '@/components/ChoreRow'
+import { Avatar, Button, ProgressBar, SectionHeader } from '@/components/ui'
+import { isOverdue, happenedToday } from '@/lib/format'
+
+function greeting() {
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+}
+
+function childDayProgress(child: Profile, chores: Chore[]) {
+  const mine = chores.filter((c) => c.assigned_to === child.id)
+  const today = mine.filter(
+    (c) =>
+      (c.due_date && happenedToday(c.due_date)) ||
+      (c.status === 'approved' && happenedToday(c.approved_at)),
+  )
+  const done = today.filter((c) => c.status === 'approved').length
+  return { done, total: today.length }
+}
 
 export function ParentDashboard() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const { family, members, chores, loading } = useFamily()
 
-  const pendingReview = chores.filter(c => c.status === 'submitted')
-  const activeChores = chores.filter(c => ['pending', 'in_progress', 'rejected'].includes(c.status))
-  const now = new Date()
-  const overdueChores = activeChores.filter(c => c.due_date && new Date(c.due_date) < now)
-
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
-
-  function getMemberChores(memberId: string): Chore[] {
-    return chores.filter(c => (c.assigned_to === memberId || c.assigned_to === null) && c.status !== 'approved')
-  }
-
-  function getMemberDailyChores(memberId: string) {
-    const daily = chores.filter(c => {
-      if (c.assigned_to !== memberId && c.assigned_to !== null) return false
-      if (!c.due_date) return false
-      const due = new Date(c.due_date)
-      if (due > todayEnd) return false
-      if (c.status === 'approved') {
-        return c.approved_at != null && new Date(c.approved_at) >= todayStart
-      }
-      return true
-    })
-    const done = daily.filter(c => c.status === 'approved').length
-    return { total: daily.length, done }
-  }
-
   if (loading) {
     return (
       <AppLayout tabBar={<ParentTabBar />}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="spinner" />
-        </div>
+        <div className="page-loading"><div className="spinner" /></div>
       </AppLayout>
     )
   }
 
+  const submissions = chores.filter((c) => c.status === 'submitted')
+  const overdue = chores.filter(isOverdue)
+  const doneToday = chores.filter((c) => c.status === 'approved' && happenedToday(c.approved_at))
+  const active = chores.filter((c) => c.status === 'pending' || c.status === 'in_progress')
+  const children = members.filter((m) => m.role === 'child')
+  const myChores = chores.filter(
+    (c) => c.assigned_to === profile?.id && c.status !== 'approved',
+  )
+
   return (
     <AppLayout tabBar={<ParentTabBar />}>
-      <div className="screen">
-        {/* Header */}
-        <div style={{ padding: '20px 16px 12px' }}>
-          <p className="text-sm text-muted">Good {getGreeting()},</p>
-          <h1 style={{ fontSize: 22 }}>{profile?.full_name?.split(' ')[0]} 👋</h1>
-          {family && <p className="text-sm text-muted" style={{ marginTop: 2 }}>{family.name}</p>}
-        </div>
-
-        {/* Pending review banner */}
-        {pendingReview.length > 0 && (
-          <div style={{ padding: '0 16px 12px' }}>
-            <button
-              className="notif-banner warning"
-              style={{ width: '100%', border: 'none', cursor: 'pointer', justifyContent: 'space-between' }}
-              onClick={() => navigate('/parent/review')}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={16} />
-                <span>{pendingReview.length} submission{pendingReview.length !== 1 ? 's' : ''} waiting for review</span>
-              </div>
-              <span>→</span>
-            </button>
-          </div>
-        )}
-
-        {/* Overdue banner */}
-        {overdueChores.length > 0 && (
-          <div style={{ padding: '0 16px 12px' }}>
-            <div className="notif-banner warning">
-              <span>⏰</span>
-              <span>{overdueChores.length} overdue chore{overdueChores.length !== 1 ? 's' : ''}</span>
+      <TopBar
+        transparent
+        right={
+          <Avatar name={profile?.full_name} url={profile?.avatar_url} square seed={profile?.id} />
+        }
+      />
+      <main className="ff-main">
+        <div className="ff-scroll">
+          <div>
+            <div className="eyebrow">{greeting()}</div>
+            <div className="h1" style={{ marginTop: 3 }}>
+              {profile?.full_name?.split(' ')[0] ?? 'there'}
             </div>
           </div>
-        )}
 
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 100 }}>
-          {/* No members state */}
-          {members.length === 0 && (
-            <div className="card">
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <div className="empty-icon">👨‍👩‍👧‍👦</div>
-                <h3>Invite your family</h3>
-                <p className="text-sm text-muted">Share your invite code so family members can join.</p>
-                <button className="btn btn-primary btn-sm" onClick={() => navigate('/parent/invite')} style={{ marginTop: 8 }}>
-                  Get invite code
-                </button>
+          {submissions.length > 0 ? (
+            <button className="hero" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate('/parent/review')}>
+              <div className="hero__blob" style={{ width: 104, height: 104, right: -28, top: -28 }} />
+              <div className="flex between items-center" style={{ position: 'relative' }}>
+                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.09em', textTransform: 'uppercase', opacity: 0.9 }}>
+                  Needs your review
+                </span>
+                <div className="avatar-stack">
+                  {submissions.slice(0, 3).map((c) => (
+                    <span
+                      key={c.id}
+                      className="avatar avatar--sm"
+                      style={{ background: 'rgba(255,255,255,.28)', color: '#fff', border: '1.5px solid var(--primary)' }}
+                    >
+                      {(c.assignee?.full_name ?? '?').charAt(0).toUpperCase()}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Member cards */}
-          {members.filter(m => m.id !== profile?.id).map(member => {
-            const memberChores = getMemberChores(member.id)
-            const { done, total } = getMemberDailyChores(member.id)
-            const progress = total > 0 ? (done / total) * 100 : 0
-
-            return (
-              <button
-                key={member.id}
-                className="card"
-                style={{ border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                onClick={() => navigate(`/parent/member/${member.id}`)}
+              <div className="flex items-center" style={{ gap: 8, alignItems: 'baseline', marginTop: 9, position: 'relative' }}>
+                <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1 }} className="tnum">
+                  {submissions.length}
+                </span>
+                <span style={{ fontSize: 15, fontWeight: 700, opacity: 0.92 }}>
+                  {submissions.length === 1 ? 'submission' : 'submissions'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4, fontWeight: 500, position: 'relative' }}>
+                Approve photo proof to award their points
+              </div>
+              <div
+                className="flex items-center"
+                style={{ justifyContent: 'center', gap: 6, background: '#fff', color: 'var(--primary-ink)', borderRadius: 'var(--r-md)', padding: 14, fontWeight: 800, fontSize: 14, marginTop: 16, position: 'relative' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                  <Avatar name={member.full_name} userId={member.id} size="md" imageUrl={member.avatar_url} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>{member.full_name}</div>
-                    <div className="text-sm text-muted">{member.role}</div>
-                  </div>
-                  <div className="points-badge">
-                    <span>⭐</span>
-                    <span>{member.points_total}</span>
-                  </div>
-                </div>
-
-                {total > 0 ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span className="text-sm text-muted">{done}/{total} due today</span>
-                      {member.streak_current > 0 && (
-                        <span className="streak-badge">🔥 {member.streak_current}</span>
-                      )}
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${progress}%` }} />
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted" style={{ marginBottom: 6 }}>No chores due today</p>
-                )}
-
-                {/* Pending chores preview */}
-                {memberChores.slice(0, 2).map(chore => (
-                  <div key={chore.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                    <StatusDot status={chore.status} />
-                    <span className="text-sm" style={{ flex: 1, fontWeight: 500 }}>{chore.title}</span>
-                    <span className="text-sm text-muted">{chore.due_date ? formatDueDate(chore.due_date) : ''}</span>
-                  </div>
-                ))}
-                {memberChores.length > 2 && (
-                  <p className="text-sm text-muted" style={{ marginTop: 6 }}>+{memberChores.length - 2} more</p>
-                )}
-                {memberChores.length === 0 && (
-                  <p className="text-sm text-muted" style={{ marginTop: 4 }}>No chores assigned yet</p>
-                )}
-              </button>
-            )
-          })}
-
-          {/* My own chores (if parent is also assigned chores) */}
-          {chores.filter(c => c.assigned_to === profile?.id && c.status !== 'approved').length > 0 && (
-            <div className="card">
-              <div className="section-header">
-                <span className="section-title">My chores</span>
+                Review now <ChevronRight size={17} strokeWidth={2.6} />
               </div>
-              {chores.filter(c => c.assigned_to === profile?.id && c.status !== 'approved').map(chore => (
-                <div key={chore.id} className="chore-row">
-                  <StatusDot status={chore.status} />
-                  <div className="chore-info">
-                    <div className="chore-title">{chore.title}</div>
-                    {chore.due_date && <div className="chore-meta">{formatDueDate(chore.due_date)}</div>}
-                  </div>
-                  <span className="pill pill-amber">⭐ {chore.points_value}</span>
-                </div>
-              ))}
+            </button>
+          ) : (
+            <div className="card card--pad flex items-center" style={{ gap: 12 }}>
+              <span className="tile tile--lg tile-mint"><CheckCircle2 size={22} /></span>
+              <div>
+                <div className="title">You're all caught up</div>
+                <div className="meta" style={{ marginTop: 2 }}>No submissions waiting for review.</div>
+              </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* FAB */}
-      <button className="fab" onClick={() => navigate('/parent/add-chore')}>
-        <Plus size={24} />
-      </button>
+          <div className="stat-strip">
+            <div className="stat-strip__cell">
+              <div className="stat-strip__num tnum" style={{ color: 'var(--st-overdue-fg)' }}>{overdue.length}</div>
+              <div className="stat-strip__lbl">Overdue</div>
+            </div>
+            <div className="stat-strip__div" />
+            <div className="stat-strip__cell">
+              <div className="stat-strip__num tnum" style={{ color: 'var(--primary-ink)' }}>{doneToday.length}</div>
+              <div className="stat-strip__lbl">Done today</div>
+            </div>
+            <div className="stat-strip__div" />
+            <div className="stat-strip__cell">
+              <div className="stat-strip__num tnum">{active.length}</div>
+              <div className="stat-strip__lbl">Active</div>
+            </div>
+          </div>
+
+          <div className="flex" style={{ gap: 9 }}>
+            <Button leftIcon={<Plus size={17} strokeWidth={2.4} />} onClick={() => navigate('/parent/chores/new')}>
+              Assign chore
+            </Button>
+            <Button variant="secondary" leftIcon={<Gift size={16} />} onClick={() => navigate('/parent/rewards/new')}>
+              Add reward
+            </Button>
+          </div>
+
+          {children.length > 0 && (
+            <>
+              <SectionHeader label="Kids · today" action="View all" onAction={() => navigate('/parent/members')} />
+              {children.map((child) => {
+                const { done, total } = childDayProgress(child, chores)
+                const pct = total ? (done / total) * 100 : 0
+                return (
+                  <button
+                    key={child.id}
+                    className="card list-row"
+                    style={{ width: '100%', textAlign: 'left' }}
+                    onClick={() => navigate(`/parent/members/${child.id}`)}
+                  >
+                    <Avatar name={child.full_name} url={child.avatar_url} square seed={child.id} size="sm" />
+                    <div className="flex-1">
+                      <div className="flex between" style={{ alignItems: 'baseline' }}>
+                        <span className="title" style={{ fontSize: 14 }}>{child.full_name.split(' ')[0]}</span>
+                        <span className="meta" style={{ fontWeight: 700 }}>{done} of {total || 0}</span>
+                      </div>
+                      <ProgressBar value={pct} className="mt" />
+                    </div>
+                  </button>
+                )
+              })}
+            </>
+          )}
+
+          {myChores.length > 0 && (
+            <>
+              <SectionHeader label="Your chores" />
+              {myChores.map((c) => (
+                <ChoreRow key={c.id} chore={c} onClick={() => navigate(`/parent/chores/${c.id}`)} />
+              ))}
+            </>
+          )}
+        </div>
+      </main>
     </AppLayout>
   )
-}
-
-function StatusDot({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    pending: '#9CA3AF',
-    in_progress: '#5C5CE0',
-    submitted: '#F97316',
-    approved: '#22C55E',
-    rejected: '#EF4444',
-  }
-  return (
-    <div style={{
-      width: 8, height: 8, borderRadius: '50%',
-      background: colors[status] || '#9CA3AF',
-      flexShrink: 0,
-    }} />
-  )
-}
-
-function getGreeting() {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'morning'
-  if (hour < 17) return 'afternoon'
-  return 'evening'
 }

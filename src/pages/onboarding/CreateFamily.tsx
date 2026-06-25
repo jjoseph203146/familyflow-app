@@ -1,97 +1,86 @@
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AlertCircle, Users } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import type { UserRole } from '@/types'
 import { TopBar } from '@/components/layout/AppLayout'
+import { Button, Field, Input, Segmented } from '@/components/ui'
 
 export function CreateFamily() {
   const navigate = useNavigate()
   const { refreshProfile } = useAuth()
-  const [familyName, setFamilyName] = useState('')
-  const [role, setRole] = useState<'parent' | 'child'>('parent')
-  const [error, setError] = useState('')
+  const [name, setName] = useState('')
+  const [role, setRole] = useState<UserRole>('parent')
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!familyName.trim()) { setError('Please enter a family name.'); return }
-
+    setError(null)
     setLoading(true)
-    setError('')
-
-    const { error: rpcError } = await supabase.rpc('create_family', {
-      p_name: familyName.trim(),
+    const { error } = await supabase.rpc('create_family', {
+      p_name: name.trim(),
       p_role: role,
     })
-
-    if (rpcError) { setError(rpcError.message); setLoading(false); return }
-
+    if (error) {
+      setLoading(false)
+      setError(error.message)
+      return
+    }
     await refreshProfile()
     navigate(role === 'parent' ? '/parent' : '/child')
   }
 
   return (
-    <div className="app-shell">
-      <TopBar onBack={() => navigate('/onboarding')} />
-      <div className="screen screen-padded">
-        <div style={{ padding: '8px 0 24px' }}>
-          <h1>Create your family</h1>
-          <p className="text-muted" style={{ marginTop: 6 }}>Name your household and pick your role.</p>
-        </div>
+    <div className="ff-app">
+      <TopBar onBack={() => navigate(-1)} />
+      <main className="ff-main ff-main--notab">
+        <span className="tile tile--lg tile-mint">
+          <Users size={24} />
+        </span>
+        <h1 className="h1" style={{ marginTop: 16 }}>Name your family</h1>
+        <p className="muted" style={{ fontSize: 13.5, marginTop: 7, lineHeight: 1.5 }}>
+          This is what your kids will see when they join.
+        </p>
 
-        <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="input-group">
-            <label className="input-label">Family name</label>
-            <input
-              className="input-field"
-              placeholder="e.g. The Johnson Family"
-              value={familyName}
-              onChange={e => setFamilyName(e.target.value)}
+        <form onSubmit={handleSubmit} className="flex col" style={{ gap: 16, marginTop: 22 }}>
+          <Field label="Family name">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="The Rivera Family"
+              required
+              autoFocus
             />
-          </div>
-
-          <div>
-            <div className="input-label" style={{ marginBottom: 10 }}>Your role</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              {(['parent', 'child'] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  style={{
-                    flex: 1, padding: '14px 16px',
-                    borderRadius: 12, border: `2px solid ${role === r ? '#5C5CE0' : '#E5E7EB'}`,
-                    background: role === r ? '#EEF0FD' : '#fff',
-                    color: role === r ? '#5C5CE0' : '#6B7280',
-                    fontWeight: 600, fontSize: 15, cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {r === 'parent' ? '👩 Parent' : '🧒 Child'}
-                </button>
-              ))}
-            </div>
-            <p className="text-sm text-muted" style={{ marginTop: 8 }}>
-              {role === 'parent' ? 'Assign chores, review submissions, manage rewards.' : 'Complete chores, earn points, redeem rewards.'}
-            </p>
-          </div>
-
-          <div className="card" style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-            <p className="text-sm" style={{ color: '#374151' }}>
-              <strong>Your invite code</strong> will be generated automatically. Share it with family members after setup.
-            </p>
-          </div>
+          </Field>
+          <Field label="Your role">
+            <Segmented
+              value={role}
+              onChange={setRole}
+              options={[
+                { value: 'parent', label: 'Parent' },
+                { value: 'child', label: 'Child' },
+              ]}
+            />
+          </Field>
 
           {error && (
-            <div className="notif-banner warning">
-              <span>⚠️</span> {error}
+            <div className="flex items-center" style={{ gap: 8, background: 'var(--danger-soft)', border: '1px solid var(--danger-border)', color: 'var(--danger)', borderRadius: 'var(--r-md)', padding: '11px 13px', fontSize: 12.5, fontWeight: 700 }}>
+              <AlertCircle size={16} />
+              {error}
             </div>
           )}
-
-          <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
-            {loading ? 'Creating family…' : 'Create family'}
-          </button>
         </form>
+
+        <div style={{ flex: 1 }} />
+      </main>
+
+      <div className="ff-footer">
+        <Button onClick={handleSubmit} disabled={loading || !name.trim()}>
+          {loading ? 'Creating…' : 'Continue'}
+        </Button>
       </div>
     </div>
   )

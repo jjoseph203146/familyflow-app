@@ -1,77 +1,83 @@
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { TopBar } from '@/components/layout/AppLayout'
+import { Button, Field, Input } from '@/components/ui'
 
 export function SignIn() {
   const navigate = useNavigate()
   const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    setError(null)
     setLoading(true)
-    setError('')
-    const { error } = await signIn(email, password)
+    const { error } = await signIn(email.trim(), password)
     setLoading(false)
-    if (error) { setError(error); return }
+    if (error) setError(error)
   }
 
   return (
-    <div className="app-shell">
+    <div className="ff-app">
       <TopBar onBack={() => navigate('/')} />
-      <div className="screen screen-padded">
-        <div style={{ padding: '8px 0 32px' }}>
-          <h1>Welcome back</h1>
-          <p className="text-muted" style={{ marginTop: 6 }}>Sign in to your FamilyFlow account.</p>
-        </div>
+      <main className="ff-main ff-main--notab">
+        <h1 className="h1">Welcome back</h1>
+        <p className="muted" style={{ fontSize: 13.5, marginTop: 7 }}>Sign in to your family.</p>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="input-group">
-            <label className="input-label">Email</label>
-            <input
-              className="input-field"
+        <form onSubmit={handleSubmit} className="flex col" style={{ gap: 14, marginTop: 22 }}>
+          <Field label="Email">
+            <Input
               type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
               autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@email.com"
+              required
             />
-          </div>
-
-          <div className="input-group">
-            <label className="input-label">Password</label>
-            <input
-              className="input-field"
+          </Field>
+          <Field label="Password">
+            <Input
               type="password"
-              placeholder="Your password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
+              required
             />
-          </div>
+          </Field>
 
           {error && (
-            <div className="notif-banner warning">
-              <span>⚠️</span> {error}
+            <div
+              className="flex items-center"
+              style={{ gap: 8, background: 'var(--danger-soft)', border: '1px solid var(--danger-border)', color: 'var(--danger)', borderRadius: 'var(--r-md)', padding: '11px 13px', fontSize: 12.5, fontWeight: 700 }}
+            >
+              <AlertCircle size={16} />
+              {error}
             </div>
           )}
 
-          <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading} style={{ marginTop: 8 }}>
+          <Button type="submit" disabled={loading || !email || !password}>
             {loading ? 'Signing in…' : 'Sign in'}
-          </button>
+          </Button>
         </form>
 
-        <p style={{ textAlign: 'center', marginTop: 24, fontSize: 14, color: '#6B7280' }}>
-          Don't have an account?{' '}
-          <button onClick={() => navigate('/signup')} style={{ color: '#5C5CE0', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}>
-            Create one
+        <div style={{ flex: 1 }} />
+        <p className="center" style={{ fontSize: 13, paddingBottom: 20, color: 'var(--muted)', fontWeight: 600 }}>
+          New here?{' '}
+          <button
+            onClick={() => navigate('/signup')}
+            style={{ color: 'var(--primary-ink)', fontWeight: 800 }}
+          >
+            Create an account
           </button>
         </p>
-      </div>
+      </main>
     </div>
   )
 }

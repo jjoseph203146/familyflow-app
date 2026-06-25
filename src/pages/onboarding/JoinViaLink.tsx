@@ -1,28 +1,38 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { PENDING_JOIN_KEY } from '@/lib/format'
 
 export function JoinViaLink() {
-  const { code } = useParams<{ code: string }>()
-  const { profile } = useAuth()
   const navigate = useNavigate()
+  const { code } = useParams<{ code: string }>()
+  const { profile, loading } = useAuth()
 
   useEffect(() => {
-    if (!code) { navigate('/'); return }
+    if (loading) return
+    const normalized = (code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4)
 
-    if (!profile) {
-      sessionStorage.setItem('pendingJoinCode', code)
-      navigate('/signup')
-    } else if (!profile.family_id) {
-      navigate(`/onboarding/join?code=${code}`)
-    } else {
-      navigate(profile.role === 'parent' ? '/parent' : '/child')
+    if (!normalized) {
+      navigate('/', { replace: true })
+      return
     }
-  }, [code, profile, navigate])
+    if (!profile) {
+      localStorage.setItem(PENDING_JOIN_KEY, normalized)
+      navigate('/signup', { replace: true })
+      return
+    }
+    if (!profile.family_id) {
+      navigate(`/onboarding/join?code=${normalized}`, { replace: true })
+      return
+    }
+    navigate(profile.role === 'parent' ? '/parent' : '/child', { replace: true })
+  }, [code, profile, loading, navigate])
 
   return (
-    <div className="app-shell" style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <div className="spinner" />
+    <div className="ff-app">
+      <div className="page-loading">
+        <div className="spinner" />
+      </div>
     </div>
   )
 }

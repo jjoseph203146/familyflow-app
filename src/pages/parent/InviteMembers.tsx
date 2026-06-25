@@ -1,79 +1,76 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Copy, Share2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { Copy, Share2, Check } from 'lucide-react'
 import { useFamily } from '@/contexts/FamilyContext'
-import { AppLayout, TopBar } from '@/components/layout/AppLayout'
-import { ParentTabBar } from '@/components/layout/TabBar'
+import { TopBar } from '@/components/layout/AppLayout'
+import { Button } from '@/components/ui'
 
 export function InviteMembers() {
   const navigate = useNavigate()
   const { family } = useFamily()
   const [copied, setCopied] = useState(false)
 
-  function copy() {
-    if (family?.invite_code) {
-      navigator.clipboard.writeText(family.invite_code)
+  const code = family?.invite_code ?? ''
+  const formatted = code.startsWith('FAM-') ? code : `FAM-${code}`
+  const joinUrl = `${window.location.origin}/join/${code.replace(/^FAM-/, '')}`
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(formatted)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), 1600)
+    } catch {
+      /* clipboard unavailable */
     }
   }
 
-  function share() {
-    if (navigator.share && family?.invite_code) {
-      navigator.share({ title: 'Join our family on FamilyFlow', text: `Use invite code ${family.invite_code}` })
+  async function share() {
+    const data = {
+      title: 'Join our family on FamilyFlow',
+      text: `Join ${family?.name ?? 'our family'} on FamilyFlow with code ${formatted}`,
+      url: joinUrl,
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share(data)
+      } catch {
+        /* user cancelled */
+      }
     } else {
       copy()
     }
   }
 
   return (
-    <AppLayout tabBar={<ParentTabBar />}>
-      <TopBar title="Invite members" onBack={() => navigate(-1)} />
-      <div className="screen screen-padded">
-        <div style={{ textAlign: 'center', padding: '32px 0' }}>
-          <div style={{ fontSize: 64, marginBottom: 16 }}>👥</div>
-          <h2 style={{ marginBottom: 8 }}>Share your invite code</h2>
-          <p className="text-muted">Anyone with this code can join your family on FamilyFlow.</p>
+    <div className="ff-app">
+      <TopBar title="Invite a child" onBack={() => navigate(-1)} />
+      <main className="ff-main ff-main--notab">
+        <div className="ff-scroll" style={{ alignItems: 'center', marginTop: 8 }}>
+          <p className="muted center" style={{ fontSize: 13.5, lineHeight: 1.5, maxWidth: 280 }}>
+            Share this code or QR. Your child installs FamilyFlow and joins your family instantly.
+          </p>
+
+          <div className="card card--pad" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%', maxWidth: 300, marginTop: 6 }}>
+            <div style={{ background: '#fff', padding: 12, borderRadius: 'var(--r-md)', border: '1px solid var(--line)' }}>
+              <QRCodeSVG value={joinUrl} size={150} bgColor="#ffffff" fgColor="#18261F" level="M" />
+            </div>
+            <div className="center">
+              <div className="section-label">Invite code</div>
+              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '.14em', color: 'var(--primary-ink)', marginTop: 3 }}>
+                {formatted}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex" style={{ gap: 9, width: '100%', maxWidth: 300 }}>
+            <Button variant="secondary" leftIcon={copied ? <Check size={16} /> : <Copy size={16} />} onClick={copy}>
+              {copied ? 'Copied!' : 'Copy code'}
+            </Button>
+            <Button leftIcon={<Share2 size={16} />} onClick={share}>Share</Button>
+          </div>
         </div>
-
-        {family ? (
-          <>
-            <div style={{
-              background: 'linear-gradient(135deg, #EEF0FD 0%, #F3E8FF 100%)',
-              borderRadius: 20, padding: '28px 24px', textAlign: 'center', marginBottom: 24,
-            }}>
-              <div className="text-sm text-muted" style={{ marginBottom: 8 }}>Your family invite code</div>
-              <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '0.15em', color: '#5C5CE0' }}>
-                {family.invite_code}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-              <div style={{ padding: 16, background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-                <QRCodeSVG
-                  value={`${window.location.origin}/join/${family.invite_code}`}
-                  size={160}
-                  fgColor="#5C5CE0"
-                  bgColor="#ffffff"
-                  level="M"
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn btn-secondary btn-full" onClick={copy}>
-                <Copy size={16} /> {copied ? 'Copied!' : 'Copy code'}
-              </button>
-              <button className="btn btn-primary btn-full" onClick={share}>
-                <Share2 size={16} /> Share
-              </button>
-            </div>
-          </>
-        ) : (
-          <p className="text-muted" style={{ textAlign: 'center' }}>No family found.</p>
-        )}
-      </div>
-    </AppLayout>
+      </main>
+    </div>
   )
 }

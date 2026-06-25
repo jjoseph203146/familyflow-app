@@ -1,112 +1,88 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Plus, ClipboardList } from 'lucide-react'
 import { useFamily } from '@/contexts/FamilyContext'
-import { Avatar } from '@/components/ui/Avatar'
+import type { Chore } from '@/types'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ParentTabBar } from '@/components/layout/TabBar'
-import { formatDueDate } from '@/lib/utils'
-import { Chore } from '@/types'
+import { ChoreRow } from '@/components/ChoreRow'
+import { EmptyState } from '@/components/ui'
+import { isOverdue } from '@/lib/format'
 
 type Filter = 'all' | 'active' | 'submitted' | 'overdue' | 'done'
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'submitted', label: 'Submitted' },
+  { key: 'overdue', label: 'Overdue' },
+  { key: 'done', label: 'Done' },
+]
 
-const STATUS_PILL: Record<string, { label: string; cls: string }> = {
-  pending:    { label: 'Pending',    cls: 'pill-gray' },
-  in_progress:{ label: 'In progress',cls: 'pill-indigo' },
-  submitted:  { label: 'Submitted',  cls: 'pill-orange' },
-  approved:   { label: 'Done',       cls: 'pill-green' },
-  rejected:   { label: 'Rejected',   cls: 'pill-red' },
+function matches(chore: Chore, filter: Filter): boolean {
+  switch (filter) {
+    case 'active':
+      return chore.status === 'pending' || chore.status === 'in_progress'
+    case 'submitted':
+      return chore.status === 'submitted'
+    case 'overdue':
+      return isOverdue(chore)
+    case 'done':
+      return chore.status === 'approved'
+    default:
+      return true
+  }
 }
 
 export function AllChores() {
   const navigate = useNavigate()
-  const { chores, members } = useFamily()
+  const { chores } = useFamily()
   const [filter, setFilter] = useState<Filter>('all')
 
-  const now = new Date()
-  const filtered = chores.filter(c => {
-    if (filter === 'active') return ['pending', 'in_progress', 'rejected'].includes(c.status)
-    if (filter === 'submitted') return c.status === 'submitted'
-    if (filter === 'overdue') return ['pending', 'in_progress'].includes(c.status) && c.due_date && new Date(c.due_date) < now
-    if (filter === 'done') return c.status === 'approved'
-    return true
-  })
-
-  const filters: { key: Filter; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'active', label: 'Active' },
-    { key: 'submitted', label: `Submitted (${chores.filter(c => c.status === 'submitted').length})` },
-    { key: 'overdue', label: 'Overdue' },
-    { key: 'done', label: 'Done' },
-  ]
+  const visible = useMemo(
+    () =>
+      chores
+        .filter((c) => matches(c, filter))
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [chores, filter],
+  )
 
   return (
     <AppLayout tabBar={<ParentTabBar />}>
-      <TopBar title="All chores" right={
-        <button className="btn btn-primary btn-sm" onClick={() => navigate('/parent/add-chore')}>
-          + Add chore
-        </button>
-      } />
-
-      <div style={{ padding: '4px 16px 8px' }}>
-        <div className="scroll-x">
-          {filters.map(f => (
-            <button
-              key={f.key}
-              className={`chip ${filter === f.key ? 'active' : ''}`}
-              onClick={() => setFilter(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
+      <TopBar
+        title="Chores"
+        right={
+          <button className="icon-btn" style={{ background: 'var(--primary)', color: '#fff', border: 'none' }} onClick={() => navigate('/parent/chores/new')} aria-label="New chore">
+            <Plus size={18} strokeWidth={2.4} />
+          </button>
+        }
+      />
+      <div style={{ padding: '0 16px 8px', display: 'flex', gap: 6, overflowX: 'auto' }}>
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            className={`chip ${filter === f.key ? 'is-on' : ''}`}
+            style={{ flex: 'none' }}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <main className="ff-main">
+        <div className="ff-scroll" style={{ gap: 9 }}>
+          {visible.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardList size={26} />}
+              title="No chores here"
+              body={filter === 'all' ? 'Assign your first chore to get started.' : 'Nothing matches this filter right now.'}
+            />
+          ) : (
+            visible.map((c) => (
+              <ChoreRow key={c.id} chore={c} onClick={() => navigate(`/parent/chores/${c.id}`)} />
+            ))
+          )}
         </div>
-      </div>
-
-      <div className="screen">
-        {filtered.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">📋</div>
-            <p className="text-muted">No chores match this filter.</p>
-          </div>
-        ) : (
-          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.map(chore => {
-              const assignee = chore.assigned_to ? members.find(m => m.id === chore.assigned_to) : null
-              const pill = STATUS_PILL[chore.status] ?? STATUS_PILL.pending
-              const isOverdue = chore.due_date && new Date(chore.due_date) < now && chore.status !== 'approved'
-
-              return (
-                <button
-                  key={chore.id}
-                  className="card"
-                  style={{ border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', gap: 12, alignItems: 'center' }}
-                  onClick={() => navigate(`/parent/chore/${chore.id}`)}
-                >
-                  {assignee ? (
-                    <Avatar name={assignee.full_name} userId={assignee.id} size="sm" imageUrl={assignee.avatar_url} />
-                  ) : (
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>👥</div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="chore-title">{chore.title}</div>
-                    <div className="chore-meta">
-                      {assignee ? assignee.full_name.split(' ')[0] : 'Everyone'}
-                      {chore.due_date && (
-                        <span style={{ marginLeft: 6, color: isOverdue ? '#EF4444' : undefined }}>
-                          · {formatDueDate(chore.due_date)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span className={`pill ${pill.cls}`}>{pill.label}</span>
-                    <span className="text-xs text-muted">⭐ {chore.points_value}</span>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      </main>
     </AppLayout>
   )
 }

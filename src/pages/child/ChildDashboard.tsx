@@ -1,172 +1,174 @@
 import { useNavigate } from 'react-router-dom'
+import { Bell, Flame, Clock, Check } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
-import { AppLayout } from '@/components/layout/AppLayout'
+import type { Chore, Reward } from '@/types'
+import { AppLayout, TopBar } from '@/components/layout/AppLayout'
 import { ChildTabBar } from '@/components/layout/TabBar'
-import { formatDueDate } from '@/lib/utils'
-import { Chore } from '@/types'
+import { Avatar } from '@/components/ui'
+import { choreVisual } from '@/components/choreVisual'
+import { happenedToday } from '@/lib/format'
+
+function nextReward(points: number, rewards: Reward[]): Reward | null {
+  const reachable = rewards
+    .filter((r) => r.is_active && r.points_required > points)
+    .sort((a, b) => a.points_required - b.points_required)
+  return reachable[0] ?? null
+}
 
 export function ChildDashboard() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const { family, chores, members, rewards, loading } = useFamily()
-  const myMember = members.find(m => m.id === profile?.id)
-  const pts = myMember?.points_total ?? profile?.points_total ?? 0
-  const streak = myMember?.streak_current ?? profile?.streak_current ?? 0
-
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-
-  const myChores = chores.filter(c =>
-    (c.assigned_to === profile?.id || c.assigned_to === null) &&
-    c.status !== 'approved'
-  )
-
-  const doneToday = chores.filter(c =>
-    (c.assigned_to === profile?.id || c.assigned_to === null) &&
-    c.status === 'approved' &&
-    c.approved_at != null &&
-    new Date(c.approved_at) >= todayStart
-  ).length
-
-  const nextReward = rewards
-    .filter(r => r.points_required > pts)
-    .sort((a, b) => a.points_required - b.points_required)[0] ?? null
-  const ptsToNext = nextReward ? nextReward.points_required - pts : null
-
-  const now = new Date()
+  const { chores, rewards, unreadCount, loading } = useFamily()
 
   if (loading) {
     return (
       <AppLayout tabBar={<ChildTabBar />}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="spinner" />
-        </div>
+        <div className="page-loading"><div className="spinner" /></div>
       </AppLayout>
     )
   }
 
+  const mine = chores.filter((c) => c.assigned_to === profile?.id)
+  const todo = mine.filter((c) => c.status === 'pending' || c.status === 'in_progress' || c.status === 'rejected')
+  const doneToday = mine.filter((c) => c.status === 'approved' && happenedToday(c.approved_at)).length
+  const points = profile?.points_total ?? 0
+  const goal = nextReward(points, rewards)
+  const toGo = goal ? goal.points_required - points : 0
+  const goalPct = goal ? (points / goal.points_required) * 100 : 100
+
   return (
     <AppLayout tabBar={<ChildTabBar />}>
-      <div className="screen">
-        {/* Header */}
-        <div style={{ padding: '20px 16px 12px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
-            <p className="text-sm text-muted">Hey {profile?.full_name?.split(' ')[0]},</p>
-            <h1 style={{ fontSize: 22 }}>Today's chores ✨</h1>
-            {family && <p className="text-sm text-muted">{family.name}</p>}
-          </div>
-          <div className="points-badge">
-            <span>⭐</span>
-            <span>{pts}</span>
-          </div>
-        </div>
-
-        {/* Stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: '0 16px 16px' }}>
-          <div className="card" style={{ borderTop: '3px solid #5C5CE0', textAlign: 'center', padding: '14px 12px' }}>
-            <div style={{ fontSize: 34, fontWeight: 800, color: '#5C5CE0', lineHeight: 1 }}>{myChores.length}</div>
-            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>Chores Left</div>
-          </div>
-
-          <div className="card" style={{ borderTop: '3px solid #22C55E', textAlign: 'center', padding: '14px 12px' }}>
-            <div style={{ fontSize: 34, fontWeight: 800, color: '#22C55E', lineHeight: 1 }}>{doneToday}</div>
-            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>Done Today</div>
-          </div>
-
-          <div className="card" style={{ borderTop: '3px solid #F59E0B', textAlign: 'center', padding: '14px 12px' }}>
-            <div style={{ fontSize: 34, fontWeight: 800, color: '#F59E0B', lineHeight: 1 }}>
-              {streak > 0 ? `🔥 ${streak}` : '—'}
-            </div>
-            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>Day Streak</div>
-          </div>
-
-          <div className="card" style={{ borderTop: '3px solid #7C3AED', textAlign: 'center', padding: '14px 12px' }}>
-            {nextReward ? (
-              <>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#7C3AED', lineHeight: 1 }}>{ptsToNext} ⭐</div>
-                <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>{nextReward.title}</div>
-              </>
-            ) : rewards.length > 0 ? (
-              <>
-                <div style={{ fontSize: 28, lineHeight: 1 }}>🎉</div>
-                <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>All unlocked!</div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 28, lineHeight: 1 }}>🎁</div>
-                <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginTop: 6 }}>No rewards yet</div>
-              </>
+      <TopBar
+        transparent
+        right={
+          <button className="icon-btn" onClick={() => navigate('/child/activity')} style={{ position: 'relative' }} aria-label="Activity">
+            <Bell size={19} />
+            {unreadCount > 0 && (
+              <span style={{ position: 'absolute', top: 7, right: 8, width: 8, height: 8, borderRadius: 999, background: 'var(--primary)', border: '1.5px solid var(--surface)' }} />
             )}
+          </button>
+        }
+      />
+      <main className="ff-main">
+        <div className="ff-scroll">
+          <div className="flex items-center" style={{ gap: 10 }}>
+            <Avatar name={profile?.full_name} url={profile?.avatar_url} square seed={profile?.id} />
+            <div>
+              <div className="eyebrow">Let's go</div>
+              <div className="h2" style={{ fontSize: 18 }}>Hi, {profile?.full_name?.split(' ')[0]}</div>
+            </div>
           </div>
-        </div>
 
-        {/* Chore list */}
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 100 }}>
-          {myChores.length === 0 ? (
-            <div className="card">
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <div className="empty-icon">🎉</div>
-                <h3>All done!</h3>
-                <p className="text-sm text-muted">No chores right now. Enjoy your time!</p>
-                {doneToday > 0 && (
-                  <p className="text-sm text-muted" style={{ marginTop: 4 }}>
-                    You've completed {doneToday} chore{doneToday !== 1 ? 's' : ''} today.
-                  </p>
-                )}
+          {goal ? (
+            <button
+              className="hero hero--gradient"
+              style={{ width: '100%', textAlign: 'left', borderRadius: 'var(--r-2xl)', padding: 18 }}
+              onClick={() => navigate('/child/rewards')}
+            >
+              <div className="hero__blob" style={{ width: 108, height: 108, right: -26, top: -30 }} />
+              <div className="hero__blob" style={{ width: 46, height: 46, right: 24, top: 42, background: 'rgba(255,255,255,.06)' }} />
+              <div className="flex between items-center" style={{ position: 'relative' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.09em', textTransform: 'uppercase', opacity: 0.9 }}>Your next reward</span>
+                <span className="tile tile--sm" style={{ background: 'rgba(255,255,255,.2)', color: '#fff', borderRadius: 999, width: 30, height: 30 }}>
+                  <Flame size={16} />
+                </span>
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-.02em', marginTop: 8, position: 'relative' }}>{goal.title}</div>
+              <div className="flex" style={{ gap: 7, alignItems: 'baseline', marginTop: 7, position: 'relative' }}>
+                <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1, letterSpacing: '-.03em' }} className="tnum">{toGo}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, opacity: 0.92 }}>points to go!</span>
+              </div>
+              <div style={{ position: 'relative', marginTop: 13 }}>
+                <div style={{ height: 11, borderRadius: 999, background: 'rgba(255,255,255,.22)', overflow: 'hidden' }}>
+                  <div style={{ width: `${goalPct}%`, height: '100%', background: '#fff', borderRadius: 999, boxShadow: '0 0 12px rgba(255,255,255,.5)' }} />
+                </div>
+              </div>
+              <div className="flex between items-center" style={{ marginTop: 9, position: 'relative' }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, opacity: 0.9 }} className="tnum">{points} / {goal.points_required} pts</span>
+                <span className="flex items-center" style={{ gap: 4, fontSize: 11, fontWeight: 800, background: '#fff', color: 'var(--primary-ink)', padding: '4px 10px', borderRadius: 999 }}>
+                  <Flame size={12} fill="currentColor" /> So close!
+                </span>
+              </div>
+            </button>
+          ) : (
+            <div className="hero hero--gradient" style={{ borderRadius: 'var(--r-2xl)' }}>
+              <div className="eyebrow" style={{ color: '#fff', opacity: 0.9 }}>Your points</div>
+              <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1.1 }} className="tnum">{points}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, opacity: 0.9, marginTop: 4 }}>You've unlocked everything — ask for a new reward!</div>
+            </div>
+          )}
+
+          <div className="flex" style={{ gap: 9 }}>
+            <div className="stat-chip" style={{ background: 'var(--p-sky)' }}>
+              <div className="stat-chip__num tnum" style={{ color: 'var(--p-sky-ink)' }}>{todo.length}</div>
+              <div className="stat-chip__lbl">To do</div>
+            </div>
+            <div className="stat-chip" style={{ background: 'var(--p-sage)' }}>
+              <div className="stat-chip__num tnum" style={{ color: 'var(--p-sage-ink)' }}>{doneToday}</div>
+              <div className="stat-chip__lbl">Done today</div>
+            </div>
+            <div className="stat-chip" style={{ background: 'var(--p-peach)' }}>
+              <div className="stat-chip__num tnum" style={{ color: 'var(--p-peach-ink)' }}>
+                {profile?.streak_current ?? 0} <Flame size={15} fill="var(--p-peach-ink)" color="var(--p-peach-ink)" />
+              </div>
+              <div className="stat-chip__lbl">Day streak</div>
+            </div>
+          </div>
+
+          <div className="section-label" style={{ marginTop: 1 }}>Today's chores</div>
+          {todo.length === 0 ? (
+            <div className="card card--pad flex items-center" style={{ gap: 12 }}>
+              <span className="tile tile--lg tile-mint"><Check size={22} strokeWidth={2.4} /></span>
+              <div>
+                <div className="title">All done!</div>
+                <div className="meta" style={{ marginTop: 2 }}>You've finished everything for today.</div>
               </div>
             </div>
           ) : (
-            myChores.map(chore => <ChoreCard key={chore.id} chore={chore} now={now} />)
+            todo.map((c: Chore) => {
+              const { Icon, tone } = choreVisual(c.title)
+              const isRejected = c.status === 'rejected'
+              return (
+                <div key={c.id} className="card list-row" style={{ borderColor: isRejected ? 'var(--danger-border)' : undefined, borderWidth: isRejected ? 1.5 : 1 }}>
+                  <span className={`tile tile-${tone}`} style={{ width: 42, height: 42 }}><Icon size={20} /></span>
+                  <div className="flex-1">
+                    <div className="title">{c.title}</div>
+                    <div style={{ marginTop: 3 }}>
+                      {isRejected ? (
+                        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--danger)' }}>Sent back · tap to fix</span>
+                      ) : (
+                        <span className="points">+{c.points_value} pts</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className={`btn ${isRejected ? 'btn--danger' : 'btn--primary'}`}
+                    style={{ width: 'auto', padding: '9px 16px', fontSize: 12.5, boxShadow: 'none' }}
+                    onClick={() => navigate(isRejected ? `/child/resubmit/${c.id}` : `/child/submit/${c.id}`)}
+                  >
+                    {isRejected ? 'Fix' : 'Start'}
+                  </button>
+                </div>
+              )
+            })
           )}
+
+          {mine.filter((c) => c.status === 'submitted').map((c) => {
+            const { Icon, tone } = choreVisual(c.title)
+            return (
+              <div key={c.id} className="card list-row" style={{ opacity: 0.72 }}>
+                <span className={`tile tile-${tone}`} style={{ width: 42, height: 42 }}><Icon size={20} /></span>
+                <div className="flex-1">
+                  <div className="title">{c.title}</div>
+                  <div style={{ marginTop: 3 }}><span style={{ fontSize: 11, fontWeight: 700, color: 'var(--st-submitted-fg)' }}>Awaiting review</span></div>
+                </div>
+                <Clock size={20} color="var(--st-submitted-fg)" />
+              </div>
+            )
+          })}
         </div>
-      </div>
+      </main>
     </AppLayout>
-  )
-}
-
-function ChoreCard({ chore, now }: { chore: Chore; now: Date }) {
-  const navigate = useNavigate()
-  const isOverdue = chore.due_date && new Date(chore.due_date) < now && chore.status !== 'submitted'
-  const isRejected = chore.status === 'rejected'
-
-  return (
-    <button
-      className="card"
-      style={{
-        border: 'none', cursor: 'pointer', textAlign: 'left',
-        borderLeft: isRejected ? '3px solid #EF4444' : isOverdue ? '3px solid #F97316' : undefined,
-      }}
-      onClick={() => navigate(isRejected ? `/child/resubmit/${chore.id}` : `/child/submit/${chore.id}`)}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-          background: isRejected ? '#FEE2E2' : isOverdue ? '#FFEDD5' : '#EEF0FD',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-        }}>
-          {isRejected ? '↩️' : isOverdue ? '⏰' : '📋'}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{chore.title}</div>
-          {chore.due_date && (
-            <div className="text-sm" style={{ color: isOverdue ? '#F97316' : '#6B7280', marginTop: 2 }}>
-              {formatDueDate(chore.due_date)}
-            </div>
-          )}
-          {isRejected && chore.rejection_comment && (
-            <div style={{ marginTop: 6, padding: '6px 10px', background: '#FEF2F2', borderRadius: 8, fontSize: 13, color: '#B91C1C' }}>
-              💬 "{chore.rejection_comment}"
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-          <span className="pill pill-amber">⭐ {chore.points_value}</span>
-          <span style={{ fontSize: 11, color: isRejected ? '#EF4444' : '#9CA3AF', fontWeight: 600 }}>
-            {isRejected ? 'Redo required' : chore.status === 'submitted' ? 'Under review' : chore.requires_photo ? '📸 required' : 'Tap to submit'}
-          </span>
-        </div>
-      </div>
-    </button>
   )
 }
