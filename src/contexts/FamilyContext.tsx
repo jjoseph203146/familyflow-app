@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './AuthContext'
 import { Family, Profile, Chore, Reward, Redemption, Notification } from '@/types'
@@ -30,7 +29,6 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
   const [redemptions, setRedemptions] = useState<Redemption[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)
-  const [pullRefreshing, setPullRefreshing] = useState(false)
 
   const load = useCallback(async () => {
     if (!profile?.family_id) return
@@ -79,37 +77,6 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [load])
 
-  // Pull-to-refresh
-  useEffect(() => {
-    let startY = 0
-    let pulling = false
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (window.scrollY === 0) {
-        startY = e.touches[0].clientY
-        pulling = true
-      }
-    }
-    const onTouchEnd = async (e: TouchEvent) => {
-      if (!pulling) return
-      const dy = e.changedTouches[0].clientY - startY
-      pulling = false
-      startY = 0
-      if (dy > 80) {
-        setPullRefreshing(true)
-        await load()
-        setPullRefreshing(false)
-      }
-    }
-
-    document.addEventListener('touchstart', onTouchStart, { passive: true })
-    document.addEventListener('touchend', onTouchEnd)
-    return () => {
-      document.removeEventListener('touchstart', onTouchStart)
-      document.removeEventListener('touchend', onTouchEnd)
-    }
-  }, [load])
-
   // Real-time subscriptions
   useEffect(() => {
     if (!profile?.family_id) return
@@ -152,18 +119,6 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
 
   return (
     <FamilyContext.Provider value={{ family, members, chores, rewards, redemptions, notifications, unreadCount, loading, refresh: load, markNotificationRead, clearAllNotifications, deleteNotification }}>
-      {pullRefreshing && createPortal(
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          gap: 8, padding: '10px 16px',
-          background: 'var(--primary)', color: '#fff', fontSize: 13, fontWeight: 600,
-        }}>
-          <div className="spinner" style={{ width: 16, height: 16, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
-          Refreshing…
-        </div>,
-        document.body
-      )}
       {children}
     </FamilyContext.Provider>
   )
