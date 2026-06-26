@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Bell } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import { useFamily } from '@/contexts/FamilyContext'
 import type { Notification } from '@/types'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
@@ -10,7 +10,7 @@ import { relative } from '@/lib/format'
 
 export function ParentActivityFeed() {
   const navigate = useNavigate()
-  const { notifications, unreadCount, markNotificationRead, clearAllNotifications } = useFamily()
+  const { notifications, unreadCount, markNotificationRead, clearAllNotifications, deleteNotification } = useFamily()
 
   return (
     <AppLayout tabBar={<ParentTabBar />}>
@@ -51,6 +51,15 @@ export function ParentActivityFeed() {
                     <div className="meta" style={{ marginTop: 1 }}>{n.body} · {relative(n.created_at)}</div>
                   </div>
                   {!n.read && <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--primary)', flex: 'none' }} />}
+                  <span
+                    className="icon-btn"
+                    style={{ width: 24, height: 24, opacity: 0.4, flex: 'none' }}
+                    onClick={(e) => { e.stopPropagation(); deleteNotification(n.id) }}
+                    role="button"
+                    aria-label="Dismiss"
+                  >
+                    <X size={13} />
+                  </span>
                 </button>
               )
             })

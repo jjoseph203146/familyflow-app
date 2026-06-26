@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Gift, AlertCircle } from 'lucide-react'
+import { Plus, Gift, AlertCircle, Pencil, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFamily } from '@/contexts/FamilyContext'
 import { supabase } from '@/lib/supabase'
@@ -33,6 +33,7 @@ export function RewardsManager() {
   const { rewards, refresh } = useFamily()
 
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Reward | null>(null)
   const [title, setTitle] = useState('')
   const [type, setType] = useState<RewardType>('privilege')
   const [points, setPoints] = useState(400)
@@ -52,6 +53,16 @@ export function RewardsManager() {
     setType('privilege')
     setPoints(400)
     setError(null)
+    setEditing(null)
+    setAdding(true)
+  }
+
+  function openEdit(r: Reward) {
+    setTitle(r.title)
+    setType(r.reward_type)
+    setPoints(r.points_required)
+    setError(null)
+    setEditing(r)
     setAdding(true)
   }
 
@@ -61,25 +72,42 @@ export function RewardsManager() {
     setPoints(t.points)
   }
 
-  async function create() {
-    if (!profile?.family_id || !user) return
-    setSaving(true)
-    setError(null)
-    const { error } = await supabase.from('rewards').insert({
-      family_id: profile.family_id,
-      title: title.trim(),
-      description: null,
-      points_required: points,
-      reward_type: type,
-      created_by: user.id,
-      is_active: true,
-    })
-    setSaving(false)
-    if (error) {
-      setError(error.message)
-      return
+  async function save() {
+    if (editing) {
+      setSaving(true)
+      setError(null)
+      const { error } = await supabase.from('rewards').update({
+        title: title.trim(),
+        points_required: points,
+        reward_type: type,
+      }).eq('id', editing.id)
+      setSaving(false)
+      if (error) { setError(error.message); return }
+    } else {
+      if (!profile?.family_id || !user) return
+      setSaving(true)
+      setError(null)
+      const { error } = await supabase.from('rewards').insert({
+        family_id: profile.family_id,
+        title: title.trim(),
+        description: null,
+        points_required: points,
+        reward_type: type,
+        created_by: user.id,
+        is_active: true,
+      })
+      setSaving(false)
+      if (error) { setError(error.message); return }
     }
     setAdding(false)
+    setEditing(null)
+    await refresh()
+  }
+
+  async function deleteReward(id: string) {
+    if (!window.confirm('Delete this reward? This cannot be undone.')) return
+    const { error } = await supabase.from('rewards').delete().eq('id', id)
+    if (error) { window.alert(error.message); return }
     await refresh()
   }
 
@@ -115,6 +143,12 @@ export function RewardsManager() {
                     {r.points_required} pts · {label}
                   </div>
                 </div>
+                <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEdit(r)} aria-label="Edit">
+                  <Pencil size={13} />
+                </button>
+                <button className="icon-btn" style={{ width: 28, height: 28, color: 'var(--danger)', opacity: 0.7 }} onClick={() => deleteReward(r.id)} aria-label="Delete">
+                  <Trash2 size={13} />
+                </button>
                 <Switch on onChange={() => setActiveState(r.id, false)} />
               </div>
             )
@@ -130,6 +164,12 @@ export function RewardsManager() {
                   <div className="title" style={{ fontSize: 13.5 }}>{r.title}</div>
                   <div className="meta" style={{ marginTop: 2 }}>{r.points_required} pts · {label}</div>
                 </div>
+                <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEdit(r)} aria-label="Edit">
+                  <Pencil size={13} />
+                </button>
+                <button className="icon-btn" style={{ width: 28, height: 28, color: 'var(--danger)', opacity: 0.7 }} onClick={() => deleteReward(r.id)} aria-label="Delete">
+                  <Trash2 size={13} />
+                </button>
                 <Switch on={false} onChange={() => setActiveState(r.id, true)} />
               </div>
             )
@@ -137,18 +177,22 @@ export function RewardsManager() {
         </div>
       </main>
 
-      <BottomSheet open={adding} onClose={() => setAdding(false)}>
+      <BottomSheet open={adding} onClose={() => { setAdding(false); setEditing(null) }}>
         <div style={{ maxHeight: '76vh', overflowY: 'auto' }}>
-          <h2 className="h2" style={{ marginBottom: 12 }}>New reward</h2>
+          <h2 className="h2" style={{ marginBottom: 12 }}>{editing ? 'Edit reward' : 'New reward'}</h2>
 
-          <div className="section-label" style={{ marginBottom: 8 }}>Quick start</div>
-          <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
-            {TEMPLATES.map((t) => (
-              <button key={t.title} className="chip" style={{ flex: 'none' }} onClick={() => applyTemplate(t)}>
-                {t.title}
-              </button>
-            ))}
-          </div>
+          {!editing && (
+            <>
+              <div className="section-label" style={{ marginBottom: 8 }}>Quick start</div>
+              <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
+                {TEMPLATES.map((t) => (
+                  <button key={t.title} className="chip" style={{ flex: 'none' }} onClick={() => applyTemplate(t)}>
+                    {t.title}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="flex col" style={{ gap: 14 }}>
             <Field label="Reward name">
@@ -188,8 +232,8 @@ export function RewardsManager() {
                 <AlertCircle size={16} /> {error}
               </div>
             )}
-            <Button disabled={saving || !title.trim()} onClick={create}>
-              {saving ? 'Creating…' : 'Create reward'}
+            <Button disabled={saving || !title.trim()} onClick={save}>
+              {saving ? 'Saving…' : editing ? 'Save changes' : 'Create reward'}
             </Button>
           </div>
         </div>

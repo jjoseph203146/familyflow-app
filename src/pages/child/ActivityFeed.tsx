@@ -1,4 +1,4 @@
-import { Bell } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import { useFamily } from '@/contexts/FamilyContext'
 import type { Notification } from '@/types'
 import { AppLayout, TopBar } from '@/components/layout/AppLayout'
@@ -8,7 +8,7 @@ import { notificationVisual } from '@/components/notificationVisual'
 import { relative } from '@/lib/format'
 
 export function ChildActivityFeed() {
-  const { notifications, markNotificationRead, clearAllNotifications } = useFamily()
+  const { notifications, markNotificationRead, clearAllNotifications, deleteNotification } = useFamily()
   const hasUnread = notifications.some((n) => !n.read)
 
   return (
@@ -47,6 +47,15 @@ export function ChildActivityFeed() {
                     <div className="meta" style={{ marginTop: 1 }}>{n.body} · {relative(n.created_at)}</div>
                   </div>
                   {!n.read && <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--primary)', flex: 'none' }} />}
+                  <span
+                    className="icon-btn"
+                    style={{ width: 24, height: 24, opacity: 0.4, flex: 'none' }}
+                    onClick={(e) => { e.stopPropagation(); deleteNotification(n.id) }}
+                    role="button"
+                    aria-label="Dismiss"
+                  >
+                    <X size={13} />
+                  </span>
                 </button>
               )
             })

@@ -32,6 +32,7 @@ import { SubmitProof } from '@/pages/child/SubmitProof'
 import { ResubmitChore } from '@/pages/child/ResubmitChore'
 import { PointsRewards } from '@/pages/child/PointsRewards'
 import { ChildActivityFeed } from '@/pages/child/ActivityFeed'
+import { ChildSettings } from '@/pages/child/Settings'
 
 function AppRoutes() {
   const { profile, loading } = useAuth()
@@ -101,6 +102,7 @@ function AppRoutes() {
         <Route path="/child/resubmit/:id" element={<ResubmitChore />} />
         <Route path="/child/rewards" element={<PointsRewards />} />
         <Route path="/child/activity" element={<ChildActivityFeed />} />
+        <Route path="/child/settings" element={<ChildSettings />} />
         <Route path="*" element={<Navigate to="/child" replace />} />
       </Routes>
     </FamilyProvider>

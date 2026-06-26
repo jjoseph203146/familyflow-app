@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, ClipboardList, Gift, Bell, SlidersHorizontal } from 'lucide-react'
+import { Home, ClipboardList, Gift, Bell, SlidersHorizontal, User } from 'lucide-react'
 import { useFamily } from '@/contexts/FamilyContext'
 
 function Tab({
@@ -62,6 +62,7 @@ export function ChildTabBar() {
         icon={<Bell size={20} />}
         badge={unreadCount > 0}
       />
+      <Tab to="/child/settings" label="Me" active={startsWith('/child/settings')} icon={<User size={20} />} />
     </nav>
   )
 }

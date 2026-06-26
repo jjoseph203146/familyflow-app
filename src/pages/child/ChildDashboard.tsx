@@ -167,6 +167,29 @@ export function ChildDashboard() {
               </div>
             )
           })}
+
+          {(() => {
+            const completed = mine.filter((c) => c.status === 'approved').slice(0, 10)
+            if (completed.length === 0) return null
+            return (
+              <>
+                <div className="section-label" style={{ marginTop: 4 }}>Completed</div>
+                {completed.map((c) => {
+                  const { Icon, tone } = choreVisual(c.title)
+                  return (
+                    <div key={c.id} className="card list-row" style={{ opacity: 0.62 }}>
+                      <span className={`tile tile-${tone}`} style={{ width: 42, height: 42 }}><Icon size={20} /></span>
+                      <div className="flex-1">
+                        <div className="title">{c.title}</div>
+                        <div style={{ marginTop: 3 }}><span className="points">+{c.points_value} pts earned</span></div>
+                      </div>
+                      <Check size={18} color="var(--primary-ink)" />
+                    </div>
+                  )
+                })}
+              </>
+            )
+          })()}
         </div>
       </main>
     </AppLayout>

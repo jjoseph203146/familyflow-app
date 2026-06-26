@@ -9,11 +9,12 @@ import { ChoreRow } from '@/components/ChoreRow'
 import { EmptyState } from '@/components/ui'
 import { isOverdue } from '@/lib/format'
 
-type Filter = 'all' | 'active' | 'submitted' | 'overdue' | 'done'
+type Filter = 'all' | 'active' | 'submitted' | 'rejected' | 'overdue' | 'done'
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'active', label: 'Active' },
   { key: 'submitted', label: 'Submitted' },
+  { key: 'rejected', label: 'Rejected' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'done', label: 'Done' },
 ]
@@ -24,6 +25,8 @@ function matches(chore: Chore, filter: Filter): boolean {
       return chore.status === 'pending' || chore.status === 'in_progress'
     case 'submitted':
       return chore.status === 'submitted'
+    case 'rejected':
+      return chore.status === 'rejected'
     case 'overdue':
       return isOverdue(chore)
     case 'done':

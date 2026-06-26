@@ -16,6 +16,7 @@ interface FamilyContextValue {
   refresh: () => Promise<void>
   markNotificationRead: (id: string) => Promise<void>
   clearAllNotifications: () => Promise<void>
+  deleteNotification: (id: string) => Promise<void>
 }
 
 const FamilyContext = createContext<FamilyContextValue | null>(null)
@@ -142,10 +143,15 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
   }
 
+  async function deleteNotification(id: string) {
+    await supabase.from('notifications').delete().eq('id', id)
+    setNotifications(prev => prev.filter(n => n.id !== id))
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   return (
-    <FamilyContext.Provider value={{ family, members, chores, rewards, redemptions, notifications, unreadCount, loading, refresh: load, markNotificationRead, clearAllNotifications }}>
+    <FamilyContext.Provider value={{ family, members, chores, rewards, redemptions, notifications, unreadCount, loading, refresh: load, markNotificationRead, clearAllNotifications, deleteNotification }}>
       {pullRefreshing && createPortal(
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,

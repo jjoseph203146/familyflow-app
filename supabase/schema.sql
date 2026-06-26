@@ -538,6 +538,56 @@ create policy "users can update their own notifications"
   on notifications for update
   using (user_id = auth.uid());
 
+drop policy if exists "users can delete their own notifications" on notifications;
+create policy "users can delete their own notifications"
+  on notifications for delete
+  using (user_id = auth.uid());
+
+-- FAMILIES: allow parents to update their family name
+drop policy if exists "parents can update their family" on families;
+create policy "parents can update their family"
+  on families for update
+  using (id = auth_family_id());
+
+
+-- ─────────────────────────────────────────
+-- 15. RPC: remove_member
+--     Called from: Settings.tsx (parent)
+--     Parent removes a member from the family.
+-- ─────────────────────────────────────────
+
+drop function if exists public.remove_member(uuid);
+create or replace function public.remove_member(p_member_id uuid)
+returns void as $$
+declare
+  v_caller_family uuid;
+  v_member_family uuid;
+  v_caller_role text;
+begin
+  select family_id, role into v_caller_family, v_caller_role
+  from profiles where id = auth.uid();
+
+  select family_id into v_member_family
+  from profiles where id = p_member_id;
+
+  if v_caller_role != 'parent' then
+    raise exception 'Only parents can remove members';
+  end if;
+
+  if v_caller_family is null or v_caller_family != v_member_family then
+    raise exception 'Member is not in your family';
+  end if;
+
+  if p_member_id = auth.uid() then
+    raise exception 'You cannot remove yourself — use Leave Family instead';
+  end if;
+
+  update profiles
+  set family_id = null
+  where id = p_member_id;
+end;
+$$ language plpgsql security definer;
+
 
 -- ─────────────────────────────────────────
 -- 13. REALTIME

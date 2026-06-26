@@ -63,6 +63,17 @@ export function AddChore() {
       setError(error.message)
       return
     }
+    // Notify each assigned child
+    const notifications = assigneeIds.map((childId) => ({
+      user_id: childId,
+      family_id: profile.family_id!,
+      type: 'chore_assigned' as const,
+      title: 'New chore assigned',
+      body: `"${title.trim()}" — ${points} pts`,
+      read: false,
+      chore_id: null,
+    }))
+    await supabase.from('notifications').insert(notifications)
     await refresh()
     navigate('/parent/chores')
   }
